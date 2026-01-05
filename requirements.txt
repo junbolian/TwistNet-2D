@@ -1,0 +1,22 @@
+# TwistNet-2D Requirements
+# ========================
+# Install: pip install -r requirements.txt
+
+# Core
+torch>=2.0.0
+torchvision>=0.15.0
+pillow>=9.0.0
+numpy>=1.21.0
+
+# Model zoo (for baseline models)
+timm>=0.9.0
+
+# Data processing
+scipy>=1.10.0          # For Flowers-102 .mat files
+tqdm>=4.60.0
+
+# Visualization & Analysis
+matplotlib>=3.5.0
+
+# Optional: for faster data loading
+# opencv-python>=4.5.0

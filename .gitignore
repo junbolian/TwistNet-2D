@@ -1,0 +1,19 @@
+@"
+# 数据集
+data/
+
+# 训练结果
+runs/
+
+# 模型权重
+*.pth
+*.pt
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 系统文件
+.DS_Store
+Thumbs.db
+"@ | Out-File -Encoding utf8 .gitignore
