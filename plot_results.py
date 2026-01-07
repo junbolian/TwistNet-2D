@@ -728,22 +728,46 @@ def main():
     
     if args.checkpoint and args.image:
         if 'all' in plots or 'interaction' in plots:
-            model = build_model('twistnet18', num_classes=47, pretrained=False)
-            model.load_state_dict(torch.load(args.checkpoint, map_location='cpu'))
-            plot_interaction_heatmap(model, args.image, save_path=str(save_dir / 'interaction.pdf'))
+            if not Path(args.checkpoint).exists():
+                print(f"[Warning] Checkpoint not found: {args.checkpoint}")
+            else:
+                checkpoint = torch.load(args.checkpoint, map_location='cpu')
+                # Handle different checkpoint formats
+                if 'model' in checkpoint:
+                    state_dict = checkpoint['model']
+                elif 'state_dict' in checkpoint:
+                    state_dict = checkpoint['state_dict']
+                else:
+                    state_dict = checkpoint
+                
+                model = build_model('twistnet18', num_classes=47, pretrained=False)
+                model.load_state_dict(state_dict)
+                plot_interaction_heatmap(model, args.image, save_path=str(save_dir / 'interaction.pdf'))
     
     if args.checkpoint and args.data_dir:
         if 'all' in plots or 'tsne' in plots:
-            model = build_model('twistnet18', num_classes=47, pretrained=False)
-            model.load_state_dict(torch.load(args.checkpoint, map_location='cpu'))
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            model = model.to(device)
-            
-            transform = build_eval_transform()
-            _, _, test_loader, _ = get_dataloaders(
-                args.data_dir, args.dataset, fold=1, eval_transform=transform
-            )
-            plot_tsne(model, test_loader, save_path=str(save_dir / 'tsne.pdf'))
+            if not Path(args.checkpoint).exists():
+                print(f"[Warning] Checkpoint not found: {args.checkpoint}")
+            else:
+                checkpoint = torch.load(args.checkpoint, map_location='cpu')
+                # Handle different checkpoint formats
+                if 'model' in checkpoint:
+                    state_dict = checkpoint['model']
+                elif 'state_dict' in checkpoint:
+                    state_dict = checkpoint['state_dict']
+                else:
+                    state_dict = checkpoint
+                
+                model = build_model('twistnet18', num_classes=47, pretrained=False)
+                model.load_state_dict(state_dict)
+                device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+                model = model.to(device)
+                
+                transform = build_eval_transform()
+                _, _, test_loader, _ = get_dataloaders(
+                    args.data_dir, args.dataset, fold=1, eval_transform=transform
+                )
+                plot_tsne(model, test_loader, save_path=str(save_dir / 'tsne.pdf'))
     
     print(f"\nAll figures saved to {save_dir}/")
 

@@ -1,465 +1,268 @@
-# TwistNet: Learning Second-Order Channel Interactions for Texture Recognition
+# TwistNet-2D: Spiral-Twisted Channel Interactions for Texture Recognition
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![PyTorch 2.0+](https://img.shields.io/badge/pytorch-2.0+-red.svg)](https://pytorch.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+## 概述
 
-Official PyTorch implementation of **TwistNet**, a novel architecture for texture and fine-grained recognition that explicitly models second-order channel interactions through spiral-twisted spatial correlations.
+TwistNet-2D 是一种用于纹理识别的新型网络架构，核心创新是 **Spiral-Twisted Channel Interaction (STCI)** 模块，通过螺旋位移和通道间二阶交互来捕获纹理的方向性和空间结构信息。
 
----
-
-## Abstract
-
-Texture recognition fundamentally depends on the co-occurrence of local features rather than individual feature responses. While existing architectures implicitly learn such correlations through network depth, we propose to model second-order channel interactions explicitly. We introduce the **Spiral-Twisted Channel Interaction (STCI)** module that computes pairwise channel products with directional spatial displacement, capturing cross-position correlations essential for periodic texture patterns. Our **Multi-Head STCI (MH-STCI)** aggregates interactions from multiple directions (0°, 45°, 90°, 135°) for rotation-invariant co-occurrence detection. Experiments on five benchmarks demonstrate that TwistNet-18 (11.6M parameters) outperforms recent architectures including FastViT (ICCV 2023) and RepViT (CVPR 2024) on texture recognition tasks.
-
----
-
-## 1. Method Overview
-
-### 1.1 Motivation
-
-Consider classifying *wood grain* texture: the discriminative signal lies not in detecting "stripes" or "brown regions" individually, but in their **co-occurrence**—stripes that are brown, with specific spatial periodicity. Standard CNNs must synthesize such second-order statistics implicitly through depth. We propose to model them explicitly via controlled pairwise channel interactions.
-
-### 1.2 Architecture
-
-<p align="center">
-  <img src="assets/architecture.png" width="800"/>
-</p>
-
-**TwistNet-18** follows a ResNet-like structure with four stages. Stages 3 and 4 replace standard BasicBlocks with **TwistBlocks** that inject second-order channel interactions:
+## 文件结构
 
 ```
-TwistNet-18 Architecture (11.6M params)
-├── Stem: Conv3×3, stride=2, 64 channels
-├── Stage 1: 2× BasicBlock (64 → 64)
-├── Stage 2: 2× BasicBlock (64 → 128, stride=2)
-├── Stage 3: 2× TwistBlock (128 → 256, stride=2)  ← Second-order interactions
-├── Stage 4: 2× TwistBlock (256 → 512, stride=2)  ← Second-order interactions
-└── Head: Global Average Pooling → Linear
+twistnet_code_v2/
+├── models.py              # TwistNet + Baseline 模型定义
+├── train.py               # 单次训练脚本
+├── run_all.py             # 批量实验运行器
+├── pretrain_imagenet.py   # ImageNet 预训练脚本
+├── datasets.py            # 数据集加载（DTD, FMD, KTH, CUB, Flowers）
+├── transforms.py          # 数据增强
+├── summarize_runs.py      # 结果汇总 & LaTeX 表格生成
+├── plot_results.py        # 可视化图表生成
+├── visualize.py           # TwistNet 特有可视化
+├── ablation.py            # 消融实验
+├── analysis.py            # 理论分析工具
+├── test_models.py         # 模型测试
+├── requirements.txt       # 依赖
+├── PRETRAIN_GUIDE.md      # 预训练详细指南
+└── weights/               # 预训练权重存放位置
+    └── twistnet18_imagenet.pt  # (预训练后自动生成)
 ```
 
----
+## 快速开始
 
-## 2. Technical Details
-
-### 2.1 Spiral-Twisted Channel Interaction (STCI)
-
-Given intermediate features $X \in \mathbb{R}^{C \times H \times W}$, a single STCI head operates as follows:
-
-**Step 1: Channel Reduction**
-```math
-Z = \sigma(\text{BN}(W_{\text{red}} * X)), \quad Z \in \mathbb{R}^{C_r \times H \times W}
-```
-where $C_r \ll C$ (default: $C_r = 8$) controls interaction complexity.
-
-**Step 2: Directional Spatial Twist**
-
-We apply a learned directional displacement via depthwise convolution:
-```math
-\tilde{Z} = \text{DWConv}_\theta(Z) \cdot s
-```
-where $\theta \in \{0°, 45°, 90°, 135°\}$ determines the displacement direction, and $s$ is a learnable scale. The depthwise kernel is initialized to sample from the center and a directionally-offset position:
-
-| Direction | Kernel Initialization |
-|-----------|----------------------|
-| 0° (→)    | `[0, 0, 0], [0, 0.5, 0.5], [0, 0, 0]` |
-| 45° (↗)   | `[0, 0, 0.5], [0, 0.5, 0], [0, 0, 0]` |
-| 90° (↑)   | `[0, 0.5, 0], [0, 0.5, 0], [0, 0, 0]` |
-| 135° (↖)  | `[0.5, 0, 0], [0, 0.5, 0], [0, 0, 0]` |
-
-**Step 3: Pairwise Products (Second-Order Terms)**
-
-After L2 normalization, we compute upper-triangular pairwise products:
-```math
-\phi(z, \tilde{z}) = \left[\bar{z}_i \cdot \bar{\tilde{z}}_j \right]_{i \leq j}, \quad |\phi| = \frac{C_r(C_r+1)}{2}
-```
-where $\bar{z} = z / \|z\|_2$ denotes L2-normalized features.
-
-**Output**: Concatenation of first-order ($\bar{z}$) and second-order ($\phi$) terms:
-```math
-\text{STCI}(X) = [\bar{Z}, \phi(Z, \tilde{Z})] \in \mathbb{R}^{(C_r + P) \times H \times W}
-```
-where $P = C_r(C_r+1)/2$ (e.g., $P = 36$ for $C_r = 8$).
-
-### 2.2 Multi-Head STCI (MH-STCI)
-
-To achieve rotation invariance, we aggregate interactions from multiple directions:
-
-```math
-\text{MH-STCI}(X) = W_{\text{proj}} \cdot \text{AIS}\left(\text{GN}\left(\bigoplus_{k=0}^{3} \text{STCI}_{\theta_k}(X)\right)\right)
-```
-
-| Component | Description |
-|-----------|-------------|
-| $\bigoplus$ | Channel-wise concatenation |
-| GN | GroupNorm for stable training |
-| AIS | Adaptive Interaction Selection (SE-style attention) |
-| $W_{\text{proj}}$ | 1×1 convolution projecting back to $C_{\text{out}}$ channels |
-
-### 2.3 TwistBlock
-
-The TwistBlock integrates MH-STCI into a residual structure with gated injection:
-
-```math
-Y = \sigma\left(\text{BN}(W_2 * H) + \beta \cdot \text{MH-STCI}(H) + S(X)\right)
-```
-
-where:
-- $H = \sigma(\text{BN}(W_1 * X))$ is the post-first-conv activation
-- $\beta = \text{sigmoid}(\gamma)$ is a learnable gate initialized to $\gamma = -2.0$
-- $S(\cdot)$ is identity or 1×1 downsampling shortcut
-
-**Key Design Choice**: Initializing $\gamma = -2.0$ yields $\beta \approx 0.12$ at the start, ensuring the model behaves like a standard ResNet initially and gradually learns to exploit interactions.
-
-### 2.4 Complexity Analysis
-
-For a TwistBlock with input channels $C$:
-
-| Component | Parameters | FLOPs (per spatial location) |
-|-----------|------------|------------------------------|
-| Main path (2× Conv3×3) | $18C^2$ | $18C^2$ |
-| Reduction (1×1) | $C \cdot C_r \cdot K$ | $C \cdot C_r \cdot K$ |
-| Pairwise products | 0 | $K \cdot P$ |
-| Projection (1×1) | $(C_r + P) \cdot C \cdot K$ | $(C_r + P) \cdot C \cdot K$ |
-
-where $K$ = number of heads (default: 4). With $C_r = 8$ and $K = 4$, the interaction branch adds ~8% parameter overhead.
-
----
-
-## 3. Experimental Setup
-
-### 3.1 Datasets
-
-| Dataset | Classes | Images | Folds | Task |
-|---------|---------|--------|-------|------|
-| DTD | 47 | 5,640 | 10 | Texture Recognition |
-| FMD | 10 | 1,000 | 5 | Material Recognition |
-| KTH-TIPS2 | 11 | 4,752 | 5 | Material Recognition |
-| CUB-200 | 200 | 11,788 | 5 | Fine-grained Recognition |
-| Flowers-102 | 102 | 8,189 | 5 | Fine-grained Recognition |
-
-### 3.2 Compared Methods
-
-All models are **fine-tuned from ImageNet pretrained weights** with identical settings for fair comparison:
-
-| Model | Params | Venue | Type |
-|-------|--------|-------|------|
-| ResNet-18 | 11.2M | CVPR 2016 | CNN |
-| SE-ResNet-18 | 11.3M | CVPR 2018 | Attention CNN |
-| ConvNeXtV2-Nano | 15.6M | CVPR 2023 | Modern CNN |
-| FastViT-SA12 | 10.9M | ICCV 2023 | Hybrid ViT |
-| EfficientFormerV2-S1 | 12.7M | ICCV 2023 | Efficient ViT |
-| RepViT-M1.5 | 14.0M | CVPR 2024 | Mobile ViT |
-| **TwistNet-18 (Ours)** | **11.6M** | - | Second-Order CNN |
-
-### 3.3 Training Configuration
-
-| Parameter | Value |
-|-----------|-------|
-| Input resolution | 224 × 224 |
-| Batch size | 32 |
-| Epochs | 100 |
-| Optimizer | SGD (momentum=0.9, Nesterov) |
-| Learning rate | 0.01 |
-| LR schedule | Warmup (5 epochs) + Cosine decay |
-| Min LR | 1e-6 |
-| Weight decay | 1e-4 |
-| Gradient clipping | 1.0 |
-| **Pretrained** | **ImageNet (CRITICAL)** |
-| Augmentation | RandAugment (N=2, M=9) |
-| Regularization | Mixup (α=0.8), CutMix (α=1.0), Label Smoothing (0.1) |
-| Mixed precision | FP16 (AMP) |
-
----
-
-## 4. Installation
+### 1. 安装依赖
 
 ```bash
-# Create environment
-conda create -n twistnet python=3.10 -y
-conda activate twistnet
-
-# Install PyTorch (adjust CUDA version as needed)
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-
-# Install dependencies
-pip install -r requirements.txt
+pip install torch torchvision timm numpy pillow matplotlib seaborn
 ```
 
-### Requirements
+### 2. 准备数据集
 
 ```
-torch>=2.0.0
-torchvision>=0.15.0
-timm>=0.9.0
-numpy>=1.24.0
-scipy>=1.10.0
-pillow>=9.0.0
+data/
+├── dtd/           # Describable Textures Dataset
+├── fmd/           # Flickr Material Database
+├── kth_tips2/     # KTH-TIPS2
+├── cub200/        # CUB-200-2011
+└── flowers102/    # Oxford Flowers-102
 ```
 
----
+### 3. 完整实验流程
 
-## 5. Usage
+#### Phase 1: ImageNet 预训练（必须）
 
-### 5.1 Quick Start
-
-```python
-from models import build_model, count_params
-
-# Build TwistNet-18 with ImageNet pretrained backbone
-model = build_model('twistnet18', num_classes=47, pretrained=True)
-print(f"Parameters: {count_params(model)/1e6:.2f}M")
-
-# Forward pass
-import torch
-x = torch.randn(2, 3, 224, 224)
-logits = model(x)  # [2, 47]
-
-# Access gate values (learned interaction strength)
-for name, val in model.get_gate_values().items():
-    print(f"{name}: {val:.4f}")
-```
-
-### 5.2 Training
+TwistNet 需要专属预训练权重，因为 STCI 模块是全新设计。
 
 ```bash
-# Single run (with pretrained - default and CRITICAL)
-python train.py \
-    --data_dir data/dtd \
-    --dataset dtd \
-    --model twistnet18 \
-    --fold 1 \
-    --seed 42 \
-    --epochs 100 \
-    --run_dir runs/dtd
+# 单 GPU（约14天）
+python pretrain_imagenet.py --data_dir /path/to/imagenet --epochs 600
 
-# Batch experiments (automatically uses pretrained)
-python run_all.py \
-    --data_dir data/dtd \
-    --dataset dtd \
-    --models resnet18,seresnet18,fastvit_sa12,twistnet18 \
-    --folds 1-10 \
-    --seeds 42,43,44 \
-    --epochs 100 \
-    --run_dir runs/main
+# 多 GPU（推荐，约3-4天）
+torchrun --nproc_per_node=4 pretrain_imagenet.py --data_dir /path/to/imagenet --epochs 600
+
+# 快速版（时间紧迫时，约2天，效果略差）
+torchrun --nproc_per_node=4 pretrain_imagenet.py --data_dir /path/to/imagenet --epochs 300
 ```
 
-### 5.3 Resume from Checkpoint
+**预训练完成后**，权重会自动保存到 `weights/twistnet18_imagenet.pt`，后续实验会自动检测并加载。
 
-Training automatically saves checkpoints and can resume:
+#### Phase 2: 运行实验
 
-```bash
-# If interrupted, just run the same command again
-python run_all.py --data_dir data/dtd ...
-# Automatically skips completed experiments and resumes from checkpoints
-```
-
-### 5.4 Evaluation
+**预训练完成后，直接运行以下命令即可（无需额外参数）：**
 
 ```bash
-# Summarize results (text format)
-python summarize_runs.py --run_dir runs/main
+# ============================================================
+# 主实验（7个模型 × 5数据集）
+# ============================================================
 
-# LaTeX table
-python summarize_runs.py --run_dir runs/main --latex
-
-# CSV format
-python summarize_runs.py --run_dir runs/main --csv
-```
-
----
-
-## 6. Expected Results
-
-### 6.1 Main Results (ImageNet Pretrained + Fine-tuning)
-
-| Model | DTD | FMD | KTH-TIPS2 | CUB-200 | Flowers-102 |
-|-------|-----|-----|-----------|---------|-------------|
-| ResNet-18 | 68-72% | 78-82% | 75-80% | 75-80% | 90-93% |
-| SE-ResNet-18 | 69-73% | 79-83% | 76-81% | 76-81% | 91-94% |
-| ConvNeXtV2-Nano | 70-74% | 80-84% | 77-82% | 77-82% | 92-95% |
-| FastViT-SA12 | 69-73% | 79-83% | 76-81% | 76-81% | 91-94% |
-| **TwistNet-18** | **71-75%** | **81-85%** | **78-83%** | **77-82%** | **92-95%** |
-
-*Results are expected ranges across multiple folds and seeds.*
-
-### 6.2 Ablation Study (DTD)
-
-| Configuration | Test Acc | Δ |
-|---------------|----------|---|
-| TwistNet-18 (full) | ~73% | - |
-| w/o Spiral Twist | ~71% | -2% |
-| w/o AIS | ~72% | -1% |
-| First-order only (no STCI) | ~70% | -3% |
-
----
-
-## 7. Quick Test Commands
-
-### Verify Setup (Single Model, 20 epochs)
-
-```bash
-# Quick sanity check (~5 min)
-python train.py --data_dir data/dtd --dataset dtd --fold 1 --model resnet18 --epochs 20
-
-# Expected: ~55-60% val accuracy at epoch 20 (with pretrained)
-# If you see ~20-30%, pretrained weights are NOT loading correctly!
-```
-
-### Compare ResNet vs TwistNet (100 epochs)
-
-```bash
-# Single fold comparison (~30 min)
-python train.py --data_dir data/dtd --dataset dtd --fold 1 --model resnet18 --epochs 100
-python train.py --data_dir data/dtd --dataset dtd --fold 1 --model twistnet18 --epochs 100
-python summarize_runs.py --run_dir runs
-```
-
-### Full Quick Test (7 models, 1 fold)
-
-```bash
-# PowerShell / Bash (~1.5 hours)
-python run_all.py --data_dir data/dtd --dataset dtd \
-    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 \
-    --folds 1 --seeds 42 --epochs 100 --run_dir runs/quick_test
-
-python summarize_runs.py --run_dir runs/quick_test
-```
-
----
-
-## 8. Full Experiment Commands
-
-### Main Experiments (~90 hours total)
-
-```bash
-# DTD (10 folds × 3 seeds × 7 models = 210 runs)
+# DTD
 python run_all.py --data_dir data/dtd --dataset dtd \
     --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 \
     --folds 1-10 --seeds 42,43,44 --epochs 100 --run_dir runs/main
 
-# FMD (5 folds × 3 seeds × 7 models = 105 runs)
+# FMD
 python run_all.py --data_dir data/fmd --dataset fmd \
     --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 \
     --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/main
 
-# KTH-TIPS2, CUB-200, Flowers-102 (similar commands)
-```
+# KTH-TIPS2
+python run_all.py --data_dir data/kth_tips2 --dataset kth_tips2 \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 \
+    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/main
 
-### Ablation Experiments (~6 hours)
+# CUB-200
+python run_all.py --data_dir data/cub200 --dataset cub200 \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 \
+    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/main
 
-```bash
+# Flowers-102
+python run_all.py --data_dir data/flowers102 --dataset flowers102 \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 \
+    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/main
+
+# ============================================================
+# 消融实验（只在 DTD 上做）
+# ============================================================
 python run_all.py --data_dir data/dtd --dataset dtd \
     --models twistnet18,twistnet18_no_spiral,twistnet18_no_ais,twistnet18_first_order \
     --folds 1-3 --seeds 42,43,44 --epochs 100 --run_dir runs/ablation
 ```
 
-### Summarize All Results
+#### Phase 3: 生成结果
 
 ```bash
-python summarize_runs.py --run_dir runs/main --latex
-python summarize_runs.py --run_dir runs/ablation --latex
+# ============================================================
+# 1. 生成 LaTeX 表格
+# ============================================================
+python summarize_runs.py --run_dir runs/main --latex > tables/main_results.tex
+python summarize_runs.py --run_dir runs/ablation --latex > tables/ablation.tex
+
+# ============================================================
+# 2. 生成可视化图表
+# ============================================================
+
+# 主实验柱状图
+python plot_results.py --run_dir runs/main --save_dir figures --plot bar
+
+# 消融实验图
+python plot_results.py --run_dir runs/ablation --save_dir figures --plot ablation
+
+# Gate 值演化（展示 STCI 学习过程）
+python plot_results.py \
+    --log_file runs/main/dtd_fold1_twistnet18_seed42/log.jsonl \
+    --save_dir figures \
+    --plot gate
+
+# 交互矩阵热图（放 Method 部分）
+python plot_results.py \
+    --checkpoint runs/main/dtd_fold1_twistnet18_seed42/best.pt \
+    --image data/dtd/images/banded/banded_0001.jpg \
+    --save_dir figures \
+    --plot interaction
 ```
 
----
+## 训练设置
 
-## 9. Project Structure
+所有模型使用统一的训练设置以保证公平比较：
 
-```
-twistnet2d_benchmark/
-├── models.py           # Model definitions (TwistNet + baselines via timm)
-├── datasets.py         # Dataset loaders (DTD, FMD, KTH-TIPS2, CUB-200, Flowers-102)
-├── transforms.py       # Data augmentation (ImageNet normalization)
-├── train.py            # Training script (pretrained, checkpoint resume)
-├── run_all.py          # Batch experiment runner (skip completed, resume)
-├── summarize_runs.py   # Results aggregation (text/latex/csv)
-├── ablation.py         # Ablation study runner
-├── visualize.py        # Visualization tools
-├── test_models.py      # Model sanity check
-├── requirements.txt    # Dependencies
-├── README.md           # This file
-└── data/               # Datasets (see below)
-```
+| 参数 | 值 |
+|------|-----|
+| Optimizer | SGD (momentum=0.9, nesterov=True) |
+| Learning Rate | 0.01 |
+| LR Schedule | Cosine Annealing |
+| Warmup | 5 epochs |
+| Epochs | 100 |
+| Batch Size | 32 |
+| Weight Decay | 1e-4 |
+| Label Smoothing | 0.1 |
+| Augmentation | RandAugment + Mixup + CutMix |
+| Pretrained | ImageNet (所有模型) |
 
----
+## 模型列表
 
-## 10. Dataset Preparation
+### Group 1: 公平对比（10-16M 参数）
 
-### DTD (Describable Textures Dataset)
+| 模型 | 参数量 | 来源 |
+|------|--------|------|
+| ResNet-18 | 11.7M | CVPR 2016 |
+| SE-ResNet-18 | 11.8M | CVPR 2018 |
+| ConvNeXtV2-Nano | 15.6M | CVPR 2023 |
+| FastViT-SA12 | 10.9M | ICCV 2023 |
+| EfficientFormerV2-S1 | 12.7M | ICCV 2023 |
+| RepViT-M1.5 | 14.0M | CVPR 2024 |
+| **TwistNet-18 (Ours)** | **11.6M** | - |
+
+### Group 2: 效率对比（25-30M 参数）
+
+| 模型 | 参数量 | 来源 |
+|------|--------|------|
+| ConvNeXt-Tiny | 28.6M | CVPR 2022 |
+| Swin-Tiny | 28.3M | ICCV 2021 |
+| MaxViT-Tiny | 30.9M | ECCV 2022 |
+
+## 预训练权重自动检测
+
+代码会按以下顺序自动检测 TwistNet 预训练权重：
+
+1. `./weights/twistnet18_imagenet.pt` （当前目录）
+2. `<script_dir>/weights/twistnet18_imagenet.pt` （脚本目录）
+
+如果找不到，会回退到 ResNet-18 部分权重（不推荐）。
+
+## 预期结果
+
+### ImageNet 验证集
+
+| 模型 | Epochs | Top-1 Acc | 参数量 |
+|------|--------|-----------|--------|
+| ResNet-18 (原始) | 90 | ~69.8% | 11.7M |
+| ResNet-18 (timm A1) | 600 | ~71.5% | 11.7M |
+| **TwistNet-18** | 600 | **72-74%** | 11.6M |
+| **TwistNet-18** | 300 | **71-73%** | 11.6M |
+
+### DTD 数据集
+
+| 模型 | Accuracy |
+|------|----------|
+| ResNet-18 | 68-72% |
+| ConvNeXtV2-Nano | 70-74% |
+| **TwistNet-18** | **73-77%** |
+
+## 可视化输出
+
+| 图表 | 文件 | 用途 |
+|------|------|------|
+| 主实验柱状图 | `figures/bar_chart.pdf` | Results section |
+| 消融实验图 | `figures/ablation.pdf` | Ablation study |
+| Gate 值演化 | `figures/gate_evolution.pdf` | Analysis |
+| 交互矩阵热图 | `figures/interaction.pdf` | Method section |
+
+## 常见问题
+
+### Q: 为什么 TwistNet 必须预训练？
+
+A: TwistNet 的 STCI 模块是全新设计，无法从 ResNet 借用权重。如果不预训练，STCI 模块（占模型约 65%）需要从头学习，在小数据集上效果很差。
+
+### Q: 预训练需要多长时间？
+
+| GPU 配置 | 600 epochs（推荐） | 300 epochs（快速） |
+|----------|-------------------|-------------------|
+| 1x RTX 3090 | ~14 天 | ~7 天 |
+| 4x RTX 3090 | ~4 天 | ~2 天 |
+| 4x A100 | ~3 天 | ~1.5 天 |
+
+### Q: 如何断点续训？
 
 ```bash
-# Download from https://www.robots.ox.ac.uk/~vgg/data/dtd/
-wget https://www.robots.ox.ac.uk/~vgg/data/dtd/download/dtd-r1.0.1.tar.gz
-tar -xzf dtd-r1.0.1.tar.gz
-mv dtd data/dtd
+# ImageNet 预训练
+python pretrain_imagenet.py --data_dir /path/to/imagenet --resume checkpoints/latest.pt
+
+# 下游任务
+python run_all.py --data_dir data/dtd --dataset dtd --models twistnet18 ...
+# (自动跳过已完成的实验，从 checkpoint 恢复未完成的)
 ```
 
-Expected structure:
-```
-data/dtd/
-├── images/
-│   ├── banded/
-│   ├── blotchy/
-│   └── ... (47 classes)
-└── labels/
-    ├── train1.txt, val1.txt, test1.txt
-    └── ... (10 folds)
-```
+### Q: 如何查看训练进度？
 
-### Other Datasets
-
-See [DATASET.md](DATASET.md) for detailed instructions on FMD, KTH-TIPS2, CUB-200, and Flowers-102.
-
----
-
-## 11. Troubleshooting
-
-### Low Accuracy (~40% on DTD instead of ~70%)
-
-**Cause**: Pretrained weights not loading.
-
-**Solution**: Ensure `--pretrained` flag is used (default is True). Check console output for:
-```
-[Pretrained] Loaded XX layers from ResNet-18 ImageNet weights
-```
-
-### Out of Memory
-
-**Solution**: Reduce batch size:
 ```bash
-python train.py ... --batch_size 16
+# 查看已完成的实验
+python summarize_runs.py --run_dir runs/main
+
+# 查看具体某次实验的日志
+cat runs/main/dtd_fold1_twistnet18_seed42/log.jsonl
 ```
 
-### Slow Training
+## 引用
 
-**Solution**: Ensure AMP is enabled (default):
-```bash
-python train.py ... --amp
-```
-
----
-
-## 12. Citation
+如果您使用了本代码，请引用：
 
 ```bibtex
-@inproceedings{lian2026twistnet,
-  title={TwistNet: Learning Second-Order Channel Interactions for Texture Recognition},
-  author={Lian, Junbo Jacob and others},
-  booktitle={European Conference on Computer Vision (ECCV)},
-  year={2026}
+@article{twistnet2024,
+  title={TwistNet-2D: Spiral-Twisted Channel Interactions for Texture Recognition},
+  author={...},
+  journal={...},
+  year={2024}
 }
 ```
 
----
-
-## 13. Acknowledgments
-
-This codebase builds upon:
-- [timm](https://github.com/huggingface/pytorch-image-models) for baseline models and pretrained weights
-- [torchvision](https://pytorch.org/vision/) for data augmentation
-
----
-
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+MIT License

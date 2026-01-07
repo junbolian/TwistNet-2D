@@ -71,6 +71,8 @@ def main():
     ap.add_argument("--lr", type=float, default=0.01, help="Learning rate")
     ap.add_argument("--img_size", type=int, default=224, help="Image size")
     ap.add_argument("--run_dir", type=str, default="runs", help="Output directory")
+    ap.add_argument("--twistnet_pretrained", type=str, default=None,
+                    help="Path to TwistNet-specific pretrained weights")
     ap.add_argument("--dry_run", action="store_true", help="Print commands without running")
     ap.add_argument("--force", action="store_true", help="Force re-run even if completed")
     args = ap.parse_args()
@@ -144,6 +146,10 @@ def main():
             "--amp",
             "--pretrained",  # CRITICAL: use pretrained weights
         ]
+        
+        # Add TwistNet-specific pretrained weights if provided
+        if args.twistnet_pretrained and 'twistnet' in model.lower():
+            cmd.extend(["--twistnet_pretrained", args.twistnet_pretrained])
         
         if resume:
             cmd.append("--resume")

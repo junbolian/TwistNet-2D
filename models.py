@@ -28,6 +28,8 @@ Usage:
 """
 
 from __future__ import annotations
+
+import os
 import math
 from typing import Dict, List, Tuple, Optional
 
@@ -52,31 +54,32 @@ except ImportError:
 MODEL_REGISTRY = {
     # =========================================================================
     # Group 1: Fair Comparison (10-16M params) - Main experiments
+    # All models have ImageNet pretrained weights available
     # =========================================================================
-    'resnet18': {'timm_name': 'resnet18', 'params': '11.7M', 'venue': 'CVPR 2016', 'group': 1},
-    'seresnet18': {'timm_name': 'seresnet18', 'params': '11.8M', 'venue': 'CVPR 2018', 'group': 1},
-    'convnextv2_nano': {'timm_name': 'convnextv2_nano', 'params': '15.6M', 'venue': 'CVPR 2023', 'group': 1},
-    'fastvit_sa12': {'timm_name': 'fastvit_sa12', 'params': '10.9M', 'venue': 'ICCV 2023', 'group': 1},
-    'efficientformerv2_s1': {'timm_name': 'efficientformerv2_s1', 'params': '12.7M', 'venue': 'ICCV 2023', 'group': 1},
-    'repvit_m1_5': {'timm_name': 'repvit_m1_5', 'params': '14.0M', 'venue': 'CVPR 2024', 'group': 1},
-    'twistnet18': {'timm_name': None, 'params': '11.6M', 'venue': 'Ours', 'group': 1},
+    'resnet18': {'timm_name': 'resnet18', 'params': '11.7M', 'venue': 'CVPR 2016', 'group': 1, 'pretrained': True},
+    'seresnet18': {'timm_name': 'seresnet18', 'params': '11.8M', 'venue': 'CVPR 2018', 'group': 1, 'pretrained': True},  # Uses ResNet-18 weights
+    'convnextv2_nano': {'timm_name': 'convnextv2_nano', 'params': '15.6M', 'venue': 'CVPR 2023', 'group': 1, 'pretrained': True},
+    'fastvit_sa12': {'timm_name': 'fastvit_sa12', 'params': '10.9M', 'venue': 'ICCV 2023', 'group': 1, 'pretrained': True},
+    'efficientformerv2_s1': {'timm_name': 'efficientformerv2_s1', 'params': '12.7M', 'venue': 'ICCV 2023', 'group': 1, 'pretrained': True},
+    'repvit_m1_5': {'timm_name': 'repvit_m1_5', 'params': '14.0M', 'venue': 'CVPR 2024', 'group': 1, 'pretrained': True},
+    'twistnet18': {'timm_name': None, 'params': '11.6M', 'venue': 'Ours', 'group': 1, 'pretrained': True},
     
     # =========================================================================
     # Group 2: Efficiency Comparison (official tiny/small ~25-30M)
     # =========================================================================
-    'convnext_tiny': {'timm_name': 'convnext_tiny', 'params': '28.6M', 'venue': 'CVPR 2022', 'group': 2},
-    'convnextv2_tiny': {'timm_name': 'convnextv2_tiny', 'params': '28.6M', 'venue': 'CVPR 2023', 'group': 2},
-    'swin_tiny': {'timm_name': 'swin_tiny_patch4_window7_224', 'params': '28.3M', 'venue': 'ICCV 2021', 'group': 2},
-    'maxvit_tiny': {'timm_name': 'maxvit_tiny_tf_224', 'params': '30.9M', 'venue': 'ECCV 2022', 'group': 2},
+    'convnext_tiny': {'timm_name': 'convnext_tiny', 'params': '28.6M', 'venue': 'CVPR 2022', 'group': 2, 'pretrained': True},
+    'convnextv2_tiny': {'timm_name': 'convnextv2_tiny', 'params': '28.6M', 'venue': 'CVPR 2023', 'group': 2, 'pretrained': True},
+    'swin_tiny': {'timm_name': 'swin_tiny_patch4_window7_224', 'params': '28.3M', 'venue': 'ICCV 2021', 'group': 2, 'pretrained': True},
+    'maxvit_tiny': {'timm_name': 'maxvit_tiny_tf_224', 'params': '30.9M', 'venue': 'ECCV 2022', 'group': 2, 'pretrained': True},
     
     # =========================================================================
     # Group 3: Additional baselines (various sizes)
     # =========================================================================
-    'efficientnet_b0': {'timm_name': 'efficientnet_b0', 'params': '5.3M', 'venue': 'ICML 2019', 'group': 3},
-    'efficientnetv2_s': {'timm_name': 'efficientnetv2_rw_s', 'params': '24M', 'venue': 'ICML 2021', 'group': 3},
-    'mobilenetv3_large': {'timm_name': 'mobilenetv3_large_100', 'params': '5.4M', 'venue': 'ICCV 2019', 'group': 3},
-    'convnextv2_pico': {'timm_name': 'convnextv2_pico', 'params': '9.1M', 'venue': 'CVPR 2023', 'group': 3},
-    'regnety_016': {'timm_name': 'regnety_016', 'params': '11.2M', 'venue': 'CVPR 2020', 'group': 3},
+    'efficientnet_b0': {'timm_name': 'efficientnet_b0', 'params': '5.3M', 'venue': 'ICML 2019', 'group': 3, 'pretrained': True},
+    'efficientnetv2_s': {'timm_name': 'efficientnetv2_rw_s', 'params': '24M', 'venue': 'ICML 2021', 'group': 3, 'pretrained': True},
+    'mobilenetv3_large': {'timm_name': 'mobilenetv3_large_100', 'params': '5.4M', 'venue': 'ICCV 2019', 'group': 3, 'pretrained': True},
+    'convnextv2_pico': {'timm_name': 'convnextv2_pico', 'params': '9.1M', 'venue': 'CVPR 2023', 'group': 3, 'pretrained': True},
+    'regnety_016': {'timm_name': 'regnety_016', 'params': '11.2M', 'venue': 'CVPR 2020', 'group': 3, 'pretrained': True},
 }
 
 
@@ -85,7 +88,7 @@ def list_models():
     print("=" * 75)
     print("Available Models for TwistNet-2D Benchmark")
     print("=" * 75)
-    print(f"\n{'Model':<25} {'Params':<10} {'Venue':<15} {'Source'}")
+    print(f"\n{'Model':<25} {'Params':<10} {'Venue':<15} {'Pretrained'}")
     print("-" * 75)
     
     print("\n[Group 1: Fair Comparison - 10-16M params - MAIN EXPERIMENTS]")
@@ -93,22 +96,25 @@ def list_models():
               'efficientformerv2_s1', 'repvit_m1_5', 'twistnet18']
     for name in group1:
         info = MODEL_REGISTRY[name]
-        source = 'Custom' if info['timm_name'] is None else 'timm'
-        print(f"  {name:<23} {info['params']:<10} {info['venue']:<15} {source}")
+        note = "(ResNet-18 weights)" if name in MODELS_WITHOUT_PRETRAINED else ""
+        print(f"  {name:<23} {info['params']:<10} {info['venue']:<15} Yes {note}")
     
     print("\n[Group 2: Efficiency Comparison - Official Tiny Models ~25-30M]")
     group2 = ['convnext_tiny', 'convnextv2_tiny', 'swin_tiny', 'maxvit_tiny']
     for name in group2:
         info = MODEL_REGISTRY[name]
-        print(f"  {name:<23} {info['params']:<10} {info['venue']:<15} timm")
+        print(f"  {name:<23} {info['params']:<10} {info['venue']:<15} Yes")
     
     print("\n[Group 3: Additional Baselines]")
     group3 = ['efficientnet_b0', 'mobilenetv3_large', 'convnextv2_pico', 'regnety_016']
     for name in group3:
         info = MODEL_REGISTRY[name]
-        print(f"  {name:<23} {info['params']:<10} {info['venue']:<15} timm")
+        print(f"  {name:<23} {info['params']:<10} {info['venue']:<15} Yes")
     
     print("\n" + "=" * 75)
+    print("Note: seresnet18 and twistnet18 use ResNet-18 weights for compatible layers.")
+    print("      SE/STCI modules are randomly initialized and learned during fine-tuning.")
+    print("=" * 75)
 
 
 # =============================================================================
@@ -519,8 +525,14 @@ class TwistNet(nn.Module):
 def load_pretrained_resnet18_weights(model: nn.Module, verbose: bool = True) -> nn.Module:
     """
     Load ResNet-18 ImageNet pretrained weights into TwistNet.
-    Only loads compatible layers (stem, layer1, layer2, conv parts of layer3/4).
-    STCI modules remain randomly initialized.
+    
+    CRITICAL: Only loads stem + layer1 + layer2.
+    Layer3 and layer4 (with STCI) are kept randomly initialized.
+    
+    Reason: ResNet's layer3/4 weights are optimized for direct classification,
+    but TwistNet's layer3/4 need to work WITH STCI modules. Loading pretrained
+    weights for these layers actually HURTS performance because the pretrained
+    conv expects its output to be used directly, not mixed with STCI output.
     """
     if not TIMM_AVAILABLE:
         print("[Warning] timm not available, cannot load pretrained weights")
@@ -535,9 +547,10 @@ def load_pretrained_resnet18_weights(model: nn.Module, verbose: bool = True) -> 
     skipped_keys = []
     
     for key in model_state.keys():
-        # Skip STCI related modules
-        if any(x in key for x in ['stci', 'twist', 'ais', 'gate', 'mhstci', 'heads', 'reduce', 'proj', 'norm']):
-            skipped_keys.append(key)
+        # CRITICAL: Skip layer3 and layer4 entirely
+        # These layers have STCI and need fresh training
+        if key.startswith('layer3') or key.startswith('layer4'):
+            skipped_keys.append(f"{key} (STCI layer)")
             continue
         
         # Skip classifier (different num_classes)
@@ -566,8 +579,119 @@ def load_pretrained_resnet18_weights(model: nn.Module, verbose: bool = True) -> 
     model.load_state_dict(model_state)
     
     if verbose:
-        print(f"[Pretrained] Loaded {len(loaded_keys)} layers from ResNet-18 ImageNet weights")
-        print(f"[Pretrained] Skipped {len(skipped_keys)} layers (STCI/FC/incompatible)")
+        print(f"[Pretrained] Loaded {len(loaded_keys)} layers (stem + layer1 + layer2)")
+        print(f"[Pretrained] Layer3/4: random init (STCI needs fresh training)")
+    
+    return model
+
+
+def load_twistnet_pretrained_weights(model: nn.Module, weights_path: str, verbose: bool = True) -> nn.Module:
+    """
+    Load TwistNet-specific ImageNet pretrained weights.
+    
+    This loads weights from a TwistNet that was pretrained on ImageNet,
+    so ALL layers (including STCI) are properly initialized.
+    
+    Args:
+        model: TwistNet model
+        weights_path: Path to twistnet18_imagenet.pt
+        verbose: Print loading info
+    
+    Returns:
+        Model with loaded weights
+    """
+    if not os.path.exists(weights_path):
+        raise FileNotFoundError(f"Pretrained weights not found: {weights_path}")
+    
+    state_dict = torch.load(weights_path, map_location='cpu')
+    
+    # Handle DDP wrapped state dict
+    if any(k.startswith('module.') for k in state_dict.keys()):
+        state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
+    
+    model_state = model.state_dict()
+    loaded_keys = []
+    skipped_keys = []
+    
+    for key in model_state.keys():
+        # Skip classifier (different num_classes)
+        if 'fc' in key:
+            skipped_keys.append(key)
+            continue
+        
+        if key in state_dict:
+            if model_state[key].shape == state_dict[key].shape:
+                model_state[key] = state_dict[key]
+                loaded_keys.append(key)
+            else:
+                skipped_keys.append(f"{key} (shape mismatch)")
+        else:
+            skipped_keys.append(f"{key} (not in checkpoint)")
+    
+    model.load_state_dict(model_state)
+    
+    if verbose:
+        print(f"[TwistNet Pretrained] Loaded {len(loaded_keys)} layers from {weights_path}")
+        print(f"[TwistNet Pretrained] Skipped {len(skipped_keys)} layers (FC/incompatible)")
+    
+    return model
+    
+    
+    return model
+
+
+# =============================================================================
+# Models without official pretrained weights (need manual weight loading)
+# =============================================================================
+
+MODELS_WITHOUT_PRETRAINED = {
+    'seresnet18',  # No official ImageNet weights in timm
+}
+
+
+def load_pretrained_resnet18_to_seresnet18(model: nn.Module, verbose: bool = True) -> nn.Module:
+    """
+    Load ResNet-18 ImageNet pretrained weights into SE-ResNet-18.
+    Only loads compatible layers (conv, bn). SE modules remain randomly initialized.
+    """
+    if not TIMM_AVAILABLE:
+        print("[Warning] timm not available, cannot load pretrained weights")
+        return model
+    
+    # Load pretrained ResNet-18
+    resnet18 = timm.create_model('resnet18', pretrained=True)
+    resnet_state = resnet18.state_dict()
+    model_state = model.state_dict()
+    
+    loaded_keys = []
+    skipped_keys = []
+    
+    for key in model_state.keys():
+        # Skip SE modules
+        if 'se_module' in key or 'se.' in key:
+            skipped_keys.append(key)
+            continue
+        
+        # Skip classifier (different num_classes)
+        if 'fc' in key:
+            skipped_keys.append(key)
+            continue
+        
+        # Check if exists in ResNet weights with same shape
+        if key in resnet_state:
+            if model_state[key].shape == resnet_state[key].shape:
+                model_state[key] = resnet_state[key]
+                loaded_keys.append(key)
+            else:
+                skipped_keys.append(f"{key} (shape mismatch)")
+        else:
+            skipped_keys.append(f"{key} (not in resnet)")
+    
+    model.load_state_dict(model_state)
+    
+    if verbose:
+        print(f"[Pretrained] Loaded {len(loaded_keys)} layers from ResNet-18 into SE-ResNet-18")
+        print(f"[Pretrained] Skipped {len(skipped_keys)} layers (SE modules/FC/incompatible)")
     
     return model
 
@@ -575,6 +699,44 @@ def load_pretrained_resnet18_weights(model: nn.Module, verbose: bool = True) -> 
 # =============================================================================
 # Model Factory
 # =============================================================================
+
+def _load_twistnet_pretrained(model: nn.Module, pretrained) -> nn.Module:
+    """
+    Helper function to load TwistNet pretrained weights.
+    
+    Auto-detection order:
+    1. If pretrained is a path string, use that path
+    2. Check ./weights/twistnet18_imagenet.pt
+    3. Check <script_dir>/weights/twistnet18_imagenet.pt
+    4. Fallback to ResNet-18 partial weights (not recommended)
+    """
+    # Case 1: Explicit path provided
+    if isinstance(pretrained, str) and os.path.exists(pretrained):
+        return load_twistnet_pretrained_weights(model, pretrained)
+    
+    # Case 2: Auto-detect weights file
+    if pretrained is True:
+        # Search paths in order
+        search_paths = [
+            "weights/twistnet18_imagenet.pt",  # Current working directory
+            os.path.join(os.path.dirname(__file__), "weights", "twistnet18_imagenet.pt"),  # Script directory
+        ]
+        
+        for path in search_paths:
+            if os.path.exists(path):
+                print(f"[Auto-detected] Found TwistNet weights: {path}")
+                return load_twistnet_pretrained_weights(model, path)
+        
+        # Fallback: ResNet-18 partial weights
+        print("[Warning] TwistNet-specific weights not found at:")
+        for path in search_paths:
+            print(f"  - {path}")
+        print("[Warning] Falling back to ResNet-18 partial weights (not recommended)")
+        print("[Warning] Run pretrain_imagenet.py first for best results!")
+        return load_pretrained_resnet18_weights(model)
+    
+    return model
+
 
 def build_model(name: str, num_classes: int = 47, pretrained: bool = True, **kwargs) -> nn.Module:
     """
@@ -596,6 +758,9 @@ def build_model(name: str, num_classes: int = 47, pretrained: bool = True, **kwa
         
         # From scratch (NOT recommended)
         model = build_model('resnet18', num_classes=47, pretrained=False)
+        
+        # With TwistNet-specific pretrained weights (BEST)
+        model = build_model('twistnet18', num_classes=47, pretrained='path/to/twistnet18_imagenet.pt')
     """
     name = name.lower().replace("-", "_")
     
@@ -612,7 +777,7 @@ def build_model(name: str, num_classes: int = 47, pretrained: bool = True, **kwa
             gate_init=kwargs.get("gate_init", -2.0),
         )
         if pretrained:
-            model = load_pretrained_resnet18_weights(model)
+            model = _load_twistnet_pretrained(model, pretrained)
         return model
     
     # Ablation: TwistNet without spiral (same position interaction)
@@ -626,7 +791,7 @@ def build_model(name: str, num_classes: int = 47, pretrained: bool = True, **kwa
             use_spiral=False,
         )
         if pretrained:
-            model = load_pretrained_resnet18_weights(model)
+            model = _load_twistnet_pretrained(model, pretrained)
         return model
     
     # Ablation: TwistNet without AIS
@@ -640,7 +805,7 @@ def build_model(name: str, num_classes: int = 47, pretrained: bool = True, **kwa
             use_spiral=True,
         )
         if pretrained:
-            model = load_pretrained_resnet18_weights(model)
+            model = _load_twistnet_pretrained(model, pretrained)
         return model
     
     # Ablation: TwistNet with only 1st-order (no pairwise products)
@@ -651,7 +816,7 @@ def build_model(name: str, num_classes: int = 47, pretrained: bool = True, **kwa
             twist_stages=(),  # No twist blocks
         )
         if pretrained:
-            model = load_pretrained_resnet18_weights(model)
+            model = _load_twistnet_pretrained(model, pretrained)
         return model
     
     # timm models
@@ -669,7 +834,25 @@ def build_model(name: str, num_classes: int = 47, pretrained: bool = True, **kwa
     if timm_name is None:
         raise ValueError(f"Model '{name}' is not a timm model.")
     
-    return timm.create_model(timm_name, pretrained=pretrained, num_classes=num_classes)
+    # Handle models without official pretrained weights
+    if name in MODELS_WITHOUT_PRETRAINED and pretrained:
+        print(f"[Info] {name} has no official pretrained weights in timm.")
+        print(f"[Info] Loading ResNet-18 weights into compatible layers...")
+        # Create model without pretrained
+        model = timm.create_model(timm_name, pretrained=False, num_classes=num_classes)
+        # Load ResNet-18 weights into compatible layers
+        if name == 'seresnet18':
+            model = load_pretrained_resnet18_to_seresnet18(model)
+        return model
+    
+    # Try to load with pretrained, fallback to scratch if fails
+    try:
+        return timm.create_model(timm_name, pretrained=pretrained, num_classes=num_classes)
+    except RuntimeError as e:
+        if "No pretrained weights" in str(e) and pretrained:
+            print(f"[Warning] {name} has no pretrained weights available. Training from scratch.")
+            return timm.create_model(timm_name, pretrained=False, num_classes=num_classes)
+        raise
 
 
 def count_params(model: nn.Module, trainable_only: bool = True) -> int:

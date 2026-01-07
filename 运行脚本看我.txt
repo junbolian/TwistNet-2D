@@ -1,4 +1,45 @@
 # ============================================================
+# Step 1: 准备 ImageNet 数据集
+# ============================================================
+# 目录结构：
+# /path/to/imagenet/
+# ├── train/  (~1.2M 图片)
+# └── val/    (~50K 图片)
+
+# ============================================================
+# Step 2: 开始预训练
+# ============================================================
+
+# 单 GPU（约7天）
+python pretrain_imagenet.py \
+    --data_dir /path/to/imagenet \
+    --batch_size 256 \
+    --epochs 600 \
+    --checkpoint_dir checkpoints
+
+# 多 GPU（推荐，约2天）
+torchrun --nproc_per_node=4 pretrain_imagenet.py \
+    --data_dir /path/to/imagenet \
+    --batch_size 256 \
+    --epochs 600 \
+    --checkpoint_dir checkpoints
+
+# ============================================================
+# Step 3: 如果中断，续训
+# ============================================================
+python pretrain_imagenet.py \
+    --data_dir /path/to/imagenet \
+    --resume checkpoints/latest.pt
+```
+
+**预训练完成后生成**：
+```
+checkpoints/twistnet18_imagenet.pt  ← 这个文件用于下游任务
+
+
+
+
+# ============================================================
 # 主实验（约 90 小时）
 # ============================================================
 
