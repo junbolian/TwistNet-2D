@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Training script for TwistNet-2D benchmarks."""
+"""
+Training script for TwistNet-2D benchmarks.
+Supports: pretrained weights, checkpoint resume, mixed precision.
+"""
 
 import argparse
 import json
@@ -9,7 +12,6 @@ import sys
 import os
 from pathlib import Path
 
-# Add script directory to path for module imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np
@@ -118,58 +120,109 @@ def eval_one_epoch(model, loader, device):
     return total_loss / n, total_acc / n
 
 
+def save_checkpoint(path, model, optimizer, scheduler, scaler, epoch, best_val_acc):
+    """Save checkpoint for resuming training."""
+    checkpoint = {
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'scheduler_state_dict': scheduler.state_dict(),
+        'best_val_acc': best_val_acc,
+    }
+    if scaler is not None:
+        checkpoint['scaler_state_dict'] = scaler.state_dict()
+    torch.save(checkpoint, path)
+
+
+def load_checkpoint(path, model, optimizer, scheduler, scaler, device):
+    """Load checkpoint for resuming training."""
+    checkpoint = torch.load(path, map_location=device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+    if scaler is not None and 'scaler_state_dict' in checkpoint:
+        scaler.load_state_dict(checkpoint['scaler_state_dict'])
+    return checkpoint['epoch'], checkpoint['best_val_acc']
+
+
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="TwistNet-2D Training")
+    
     # Data
-    parser.add_argument("--data_dir", type=str, required=True)
-    parser.add_argument("--dataset", type=str, default="dtd")
-    parser.add_argument("--fold", type=int, default=1)
-    parser.add_argument("--img_size", type=int, default=224)
+    parser.add_argument("--data_dir", type=str, required=True, help="Path to dataset")
+    parser.add_argument("--dataset", type=str, default="dtd", 
+                        choices=["dtd", "fmd", "kth_tips2", "cub200", "flowers102"])
+    parser.add_argument("--fold", type=int, default=1, help="Fold number")
+    parser.add_argument("--img_size", type=int, default=224, help="Input image size")
+    
     # Model
-    parser.add_argument("--model", type=str, default="twistnet18")
-    parser.add_argument("--twist_stages", type=str, default="3,4")
-    parser.add_argument("--num_heads", type=int, default=4)
+    parser.add_argument("--model", type=str, default="twistnet18", help="Model name")
+    parser.add_argument("--pretrained", action="store_true", default=True,
+                        help="Use ImageNet pretrained weights (CRITICAL for small datasets!)")
+    parser.add_argument("--no_pretrained", action="store_true",
+                        help="Train from scratch (not recommended)")
+    parser.add_argument("--twist_stages", type=str, default="3,4", help="Stages to use TwistBlock")
+    parser.add_argument("--num_heads", type=int, default=4, help="Number of STCI heads")
     parser.add_argument("--use_ais", action="store_true", default=True)
     parser.add_argument("--no_ais", action="store_true")
     parser.add_argument("--use_spiral", action="store_true", default=True)
     parser.add_argument("--no_spiral", action="store_true")
-    parser.add_argument("--gate_init", type=float, default=-2.0)
+    parser.add_argument("--gate_init", type=float, default=-2.0, help="Gate initialization")
+    
     # Training
-    parser.add_argument("--epochs", type=int, default=200)
-    parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument("--lr", type=float, default=0.05)
-    parser.add_argument("--weight_decay", type=float, default=1e-4)
-    parser.add_argument("--warmup_epochs", type=int, default=10)
-    parser.add_argument("--min_lr", type=float, default=1e-5)
-    parser.add_argument("--grad_clip", type=float, default=1.0)
+    parser.add_argument("--epochs", type=int, default=100, help="Number of epochs")
+    parser.add_argument("--batch_size", type=int, default=32, help="Batch size")
+    parser.add_argument("--lr", type=float, default=0.01, help="Learning rate")
+    parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay")
+    parser.add_argument("--warmup_epochs", type=int, default=5, help="Warmup epochs")
+    parser.add_argument("--min_lr", type=float, default=1e-6, help="Minimum learning rate")
+    parser.add_argument("--grad_clip", type=float, default=1.0, help="Gradient clipping")
+    
     # Augmentation
     parser.add_argument("--use_mixup", action="store_true", default=True)
     parser.add_argument("--no_mixup", action="store_true")
     parser.add_argument("--mixup_alpha", type=float, default=0.8)
     parser.add_argument("--cutmix_alpha", type=float, default=1.0)
     parser.add_argument("--label_smoothing", type=float, default=0.1)
-    parser.add_argument("--ra_n", type=int, default=2)
-    parser.add_argument("--ra_m", type=int, default=9)
+    parser.add_argument("--ra_n", type=int, default=2, help="RandAugment num ops")
+    parser.add_argument("--ra_m", type=int, default=9, help="RandAugment magnitude")
+    
     # System
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--num_workers", type=int, default=4)
-    parser.add_argument("--amp", action="store_true", default=True)
-    parser.add_argument("--run_dir", type=str, default="runs")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--num_workers", type=int, default=4, help="DataLoader workers")
+    parser.add_argument("--amp", action="store_true", default=True, help="Use mixed precision")
+    parser.add_argument("--run_dir", type=str, default="runs", help="Output directory")
+    
+    # Resume
+    parser.add_argument("--resume", action="store_true", help="Resume from checkpoint")
+    parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path (auto if not specified)")
+    
     args = parser.parse_args()
     
     # Handle negative flags
     if args.no_ais: args.use_ais = False
     if args.no_spiral: args.use_spiral = False
     if args.no_mixup: args.use_mixup = False
+    if args.no_pretrained: args.pretrained = False
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     seed_everything(args.seed)
     
     twist_stages = tuple(int(x) for x in args.twist_stages.split(",")) if args.twist_stages else ()
     
+    # Run name and path
     run_name = f"{args.dataset}_fold{args.fold}_{args.model}_seed{args.seed}"
     run_path = Path(args.run_dir) / run_name
     run_path.mkdir(parents=True, exist_ok=True)
+    
+    # Check if already completed
+    results_file = run_path / "results.json"
+    if results_file.exists() and not args.resume:
+        print(f"[SKIP] {run_name} already completed. Use --resume to continue.")
+        with open(results_file) as f:
+            results = json.load(f)
+        print(f"  Best Val: {results.get('best_val_acc', 'N/A'):.4f}, Test: {results.get('test_acc', 'N/A'):.4f}")
+        return
     
     # Save config
     with open(run_path / "config.json", "w") as f:
@@ -178,6 +231,7 @@ def main():
     print(f"{'='*60}")
     print(f"Run: {run_name}")
     print(f"Device: {device}")
+    print(f"Pretrained: {args.pretrained}")
     print(f"{'='*60}")
     
     # Data
@@ -195,6 +249,7 @@ def main():
     # Model
     model = build_model(
         args.model, num_classes,
+        pretrained=args.pretrained,
         twist_stages=twist_stages, num_heads=args.num_heads,
         use_ais=args.use_ais, use_spiral=args.use_spiral, gate_init=args.gate_init
     ).to(device)
@@ -214,11 +269,23 @@ def main():
     
     scaler = GradScaler() if args.amp else None
     
-    # Training
+    # Resume from checkpoint
+    start_epoch = 1
     best_val_acc = 0.0
+    checkpoint_path = args.checkpoint or (run_path / "checkpoint.pt")
+    
+    if args.resume and Path(checkpoint_path).exists():
+        print(f"[RESUME] Loading checkpoint from {checkpoint_path}")
+        start_epoch, best_val_acc = load_checkpoint(
+            checkpoint_path, model, optimizer, scheduler, scaler, device
+        )
+        start_epoch += 1  # Start from next epoch
+        print(f"[RESUME] Continuing from epoch {start_epoch}, best_val_acc: {best_val_acc:.4f}")
+    
+    # Training
     log_file = run_path / "log.jsonl"
     
-    for epoch in range(1, args.epochs + 1):
+    for epoch in range(start_epoch, args.epochs + 1):
         t0 = time.time()
         train_loss, train_acc = train_one_epoch(model, train_loader, optimizer, device, scaler, args)
         val_loss, val_acc = eval_one_epoch(model, val_loader, device)
@@ -240,9 +307,13 @@ def main():
         
         print(f"Epoch {epoch:3d}/{args.epochs} | LR {lr:.5f} | Train {train_acc:.4f} | Val {val_acc:.4f} | {elapsed:.1f}s")
         
+        # Save best model
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             torch.save(model.state_dict(), run_path / "best.pt")
+        
+        # Save checkpoint for resume
+        save_checkpoint(run_path / "checkpoint.pt", model, optimizer, scheduler, scaler, epoch, best_val_acc)
     
     # Test
     model.load_state_dict(torch.load(run_path / "best.pt"))
@@ -252,10 +323,25 @@ def main():
     print(f"Best Val: {best_val_acc:.4f}, Test: {test_acc:.4f}")
     print(f"{'='*60}")
     
-    results = {"model": args.model, "dataset": args.dataset, "fold": args.fold, "seed": args.seed,
-               "best_val_acc": best_val_acc, "test_acc": test_acc, "params_M": count_params(model)/1e6}
+    # Save results
+    results = {
+        "model": args.model, 
+        "dataset": args.dataset, 
+        "fold": args.fold, 
+        "seed": args.seed,
+        "best_val_acc": best_val_acc, 
+        "test_acc": test_acc, 
+        "params_M": count_params(model)/1e6,
+        "pretrained": args.pretrained,
+        "epochs": args.epochs,
+    }
     with open(run_path / "results.json", "w") as f:
         json.dump(results, f, indent=2)
+    
+    # Clean up checkpoint after successful completion
+    checkpoint_file = run_path / "checkpoint.pt"
+    if checkpoint_file.exists():
+        checkpoint_file.unlink()
 
 
 if __name__ == "__main__":

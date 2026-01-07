@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-summarize_runs.py - Summarize experiment results and generate paper tables.
+Summarize experiment results from run directories.
 
 Usage:
-    python summarize_runs.py --run_dir runs --dataset dtd
-    python summarize_runs.py --run_dir runs --all_datasets
+    python summarize_runs.py --run_dir runs/main --latex
+    python summarize_runs.py --run_dir runs/ablation --csv
 """
 
 import argparse
@@ -14,241 +14,204 @@ from collections import defaultdict
 import numpy as np
 
 
-def load_results(run_dir: Path, dataset: str = None):
-    """Load all results from a run directory."""
-    results = defaultdict(lambda: {"test_acc": [], "val_acc": [], "params": 0})
-    
-    for run_path in run_dir.iterdir():
-        if not run_path.is_dir():
-            continue
-        
-        # Filter by dataset if specified
-        if dataset and not run_path.name.startswith(dataset):
-            continue
-        
-        results_file = run_path / "results.json"
-        if not results_file.exists():
-            continue
-        
-        try:
-            with open(results_file) as f:
-                data = json.load(f)
-            
-            model = data["model"]
-            results[model]["test_acc"].append(data["test_acc"])
-            results[model]["val_acc"].append(data.get("best_val_acc", 0))
-            results[model]["params"] = data.get("params_M", 0)
-            results[model]["dataset"] = data.get("dataset", dataset)
-        except (json.JSONDecodeError, KeyError) as e:
-            print(f"Warning: Could not load {results_file}: {e}")
-    
+def load_results(run_dir: Path):
+    """Load all results.json files from run directory."""
+    results = []
+    for result_file in run_dir.glob("*/results.json"):
+        with open(result_file) as f:
+            data = json.load(f)
+            data["run_name"] = result_file.parent.name
+            results.append(data)
     return results
 
 
-def print_summary_table(results: dict, dataset: str):
-    """Print formatted summary table."""
-    if not results:
-        print(f"No results found for {dataset}")
+def aggregate_results(results):
+    """Aggregate results by (dataset, model) across folds and seeds."""
+    grouped = defaultdict(list)
+    
+    for r in results:
+        key = (r["dataset"], r["model"])
+        grouped[key].append({
+            "fold": r.get("fold", 1),
+            "seed": r.get("seed", 42),
+            "test_acc": r["test_acc"],
+            "best_val_acc": r.get("best_val_acc", r["test_acc"]),
+            "params_M": r.get("params_M", 0),
+        })
+    
+    aggregated = {}
+    for (dataset, model), runs in grouped.items():
+        test_accs = [r["test_acc"] for r in runs]
+        val_accs = [r["best_val_acc"] for r in runs]
+        params = runs[0]["params_M"] if runs else 0
+        
+        aggregated[(dataset, model)] = {
+            "test_mean": np.mean(test_accs) * 100,
+            "test_std": np.std(test_accs) * 100,
+            "val_mean": np.mean(val_accs) * 100,
+            "val_std": np.std(val_accs) * 100,
+            "n_runs": len(runs),
+            "params_M": params,
+        }
+    
+    return aggregated
+
+
+def print_table(aggregated, format="text"):
+    """Print results table."""
+    if not aggregated:
+        print("No results found.")
         return
     
-    # Sort by model order
-    order = ["resnet18", "se_resnet18", "convnext", "hornet", "focalnet", "van", "moganet", "twistnet18"]
-    models = sorted(results.keys(), key=lambda x: order.index(x) if x in order else 99)
+    # Group by dataset
+    datasets = sorted(set(k[0] for k in aggregated.keys()))
+    models = sorted(set(k[1] for k in aggregated.keys()))
     
-    print(f"\n{'='*75}")
-    print(f"Results Summary: {dataset.upper()}")
-    print(f"{'='*75}")
-    print(f"{'Model':<15} {'Params (M)':<12} {'Test Acc (%)':<20} {'Val Acc (%)':<15} {'Runs'}")
-    print("-" * 75)
+    if format == "latex":
+        print_latex_table(aggregated, datasets, models)
+    elif format == "csv":
+        print_csv_table(aggregated, datasets, models)
+    else:
+        print_text_table(aggregated, datasets, models)
+
+
+def print_text_table(aggregated, datasets, models):
+    """Print plain text table."""
+    print("\n" + "=" * 80)
+    print("Results Summary")
+    print("=" * 80)
     
-    best_acc = 0
-    best_model = ""
+    for dataset in datasets:
+        print(f"\n### {dataset.upper()} ###")
+        print(f"{'Model':<25} {'Params':<10} {'Test Acc':<20} {'N'}")
+        print("-" * 60)
+        
+        # Sort by test accuracy
+        dataset_results = [(m, aggregated.get((dataset, m))) for m in models 
+                          if (dataset, m) in aggregated]
+        dataset_results.sort(key=lambda x: x[1]["test_mean"], reverse=True)
+        
+        for model, stats in dataset_results:
+            acc_str = f"{stats['test_mean']:.2f} ± {stats['test_std']:.2f}%"
+            print(f"{model:<25} {stats['params_M']:.1f}M     {acc_str:<20} {stats['n_runs']}")
     
+    print("\n" + "=" * 80)
+
+
+def print_latex_table(aggregated, datasets, models):
+    """Print LaTeX table."""
+    print("\n% LaTeX Table")
+    print("\\begin{table}[t]")
+    print("\\centering")
+    print("\\caption{Results on texture and fine-grained benchmarks.}")
+    print("\\label{tab:results}")
+    print("\\small")
+    
+    # Header
+    cols = "l" + "c" * len(datasets)
+    print(f"\\begin{{tabular}}{{{cols}}}")
+    print("\\toprule")
+    header = "Model & " + " & ".join([d.upper() for d in datasets]) + " \\\\"
+    print(header)
+    print("\\midrule")
+    
+    # Find best for each dataset
+    best = {}
+    for dataset in datasets:
+        dataset_results = [(m, aggregated.get((dataset, m))) for m in models 
+                          if (dataset, m) in aggregated]
+        if dataset_results:
+            best[dataset] = max(dataset_results, key=lambda x: x[1]["test_mean"])[0]
+    
+    # Rows
     for model in models:
-        data = results[model]
-        test_accs = np.array(data["test_acc"]) * 100
-        val_accs = np.array(data["val_acc"]) * 100 if data["val_acc"] else test_accs
-        params = data["params"]
-        n = len(test_accs)
-        
-        if n == 0:
-            continue
-        
-        mean_test = test_accs.mean()
-        std_test = test_accs.std()
-        mean_val = val_accs.mean()
-        
-        if mean_test > best_acc:
-            best_acc = mean_test
-            best_model = model
-        
-        # Highlight TwistNet
-        marker = "★" if model == "twistnet18" else " "
-        print(f"{marker}{model:<14} {params:<12.2f} {mean_test:>6.2f} ± {std_test:<6.2f}    {mean_val:>6.2f}         {n}")
-    
-    print("-" * 75)
-    print(f"Best model: {best_model} ({best_acc:.2f}%)")
-    print(f"{'='*75}")
-
-
-def generate_latex_table(results: dict, dataset: str) -> str:
-    """Generate LaTeX table for paper."""
-    order = ["resnet18", "se_resnet18", "convnext", "hornet", "focalnet", "van", "moganet", "twistnet18"]
-    models = sorted(results.keys(), key=lambda x: order.index(x) if x in order else 99)
-    
-    lines = [
-        r"\begin{table}[t]",
-        r"\centering",
-        r"\caption{Results on " + dataset.upper() + r" dataset. Best results in \textbf{bold}.}",
-        r"\label{tab:" + dataset + r"}",
-        r"\begin{tabular}{lcc}",
-        r"\toprule",
-        r"Model & Params (M) & Accuracy (\%) \\",
-        r"\midrule",
-    ]
-    
-    best_acc = max(np.array(results[m]["test_acc"]).mean() for m in models if results[m]["test_acc"])
-    
-    for model in models:
-        data = results[model]
-        if not data["test_acc"]:
-            continue
-        
-        test_accs = np.array(data["test_acc"]) * 100
-        params = data["params"]
-        mean = test_accs.mean()
-        std = test_accs.std()
-        
-        # Format model name
-        name_map = {
-            "resnet18": "ResNet-18",
-            "se_resnet18": "SE-ResNet-18",
-            "convnext": "ConvNeXt-F",
-            "hornet": "HorNet-T",
-            "focalnet": "FocalNet-T",
-            "van": "VAN-B1",
-            "moganet": "MogaNet-XT",
-            "twistnet18": "TwistNet-18",
-        }
-        display_name = name_map.get(model, model)
-        
-        # Bold for best or TwistNet
-        if abs(mean - best_acc * 100) < 0.01 or model == "twistnet18":
-            lines.append(rf"\textbf{{{display_name}}} & {params:.1f} & \textbf{{{mean:.2f} $\pm$ {std:.2f}}} \\")
-        else:
-            lines.append(rf"{display_name} & {params:.1f} & {mean:.2f} $\pm$ {std:.2f} \\")
-    
-    lines.extend([
-        r"\bottomrule",
-        r"\end{tabular}",
-        r"\end{table}",
-    ])
-    
-    return "\n".join(lines)
-
-
-def generate_comparison_table(all_results: dict) -> str:
-    """Generate multi-dataset comparison table."""
-    datasets = list(all_results.keys())
-    models = ["resnet18", "se_resnet18", "convnext", "hornet", "focalnet", "van", "moganet", "twistnet18"]
-    
-    lines = [
-        r"\begin{table*}[t]",
-        r"\centering",
-        r"\caption{Comparison across texture and fine-grained recognition datasets.}",
-        r"\label{tab:comparison}",
-        r"\begin{tabular}{l" + "c" * len(datasets) + r"}",
-        r"\toprule",
-        r"Model & " + " & ".join(d.upper() for d in datasets) + r" \\",
-        r"\midrule",
-    ]
-    
-    for model in models:
-        name_map = {
-            "resnet18": "ResNet-18",
-            "se_resnet18": "SE-ResNet-18",
-            "convnext": "ConvNeXt-F",
-            "hornet": "HorNet-T",
-            "focalnet": "FocalNet-T",
-            "van": "VAN-B1",
-            "moganet": "MogaNet-XT",
-            "twistnet18": "\\textbf{TwistNet-18}",
-        }
-        display_name = name_map.get(model, model)
-        
-        accs = []
-        for ds in datasets:
-            if model in all_results[ds] and all_results[ds][model]["test_acc"]:
-                mean = np.array(all_results[ds][model]["test_acc"]).mean() * 100
-                std = np.array(all_results[ds][model]["test_acc"]).std() * 100
-                if model == "twistnet18":
-                    accs.append(rf"\textbf{{{mean:.1f}}}")
-                else:
-                    accs.append(f"{mean:.1f}")
+        row = model.replace("_", "\\_")
+        for dataset in datasets:
+            if (dataset, model) in aggregated:
+                stats = aggregated[(dataset, model)]
+                acc = f"{stats['test_mean']:.1f}"
+                if model == best.get(dataset):
+                    acc = f"\\textbf{{{acc}}}"
+                row += f" & {acc}"
             else:
-                accs.append("-")
-        
-        lines.append(f"{display_name} & " + " & ".join(accs) + r" \\")
+                row += " & -"
+        row += " \\\\"
+        print(row)
     
-    lines.extend([
-        r"\bottomrule",
-        r"\end{tabular}",
-        r"\end{table*}",
-    ])
+    print("\\bottomrule")
+    print("\\end{tabular}")
+    print("\\end{table}")
+
+
+def print_csv_table(aggregated, datasets, models):
+    """Print CSV table."""
+    print("model," + ",".join(datasets))
+    for model in models:
+        row = model
+        for dataset in datasets:
+            if (dataset, model) in aggregated:
+                stats = aggregated[(dataset, model)]
+                row += f",{stats['test_mean']:.2f}"
+            else:
+                row += ","
+        print(row)
+
+
+def print_summary_stats(aggregated):
+    """Print summary statistics."""
+    print("\n" + "=" * 60)
+    print("Summary Statistics")
+    print("=" * 60)
     
-    return "\n".join(lines)
+    total_runs = sum(s["n_runs"] for s in aggregated.values())
+    datasets = set(k[0] for k in aggregated.keys())
+    models = set(k[1] for k in aggregated.keys())
+    
+    print(f"Total runs: {total_runs}")
+    print(f"Datasets: {len(datasets)}")
+    print(f"Models: {len(models)}")
+    
+    # Best model per dataset
+    print("\nBest model per dataset:")
+    for dataset in sorted(datasets):
+        dataset_results = [(m, aggregated.get((dataset, m))) for m in models 
+                          if (dataset, m) in aggregated]
+        if dataset_results:
+            best_model, best_stats = max(dataset_results, key=lambda x: x[1]["test_mean"])
+            print(f"  {dataset}: {best_model} ({best_stats['test_mean']:.2f}%)")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Summarize experiment results")
-    parser.add_argument("--run_dir", type=str, default="runs", help="Run directory")
-    parser.add_argument("--dataset", type=str, default=None, help="Dataset name (if single)")
-    parser.add_argument("--all_datasets", action="store_true", help="Process all datasets")
-    parser.add_argument("--latex", action="store_true", help="Generate LaTeX tables")
-    parser.add_argument("--output", type=str, default=None, help="Output file for LaTeX")
+    parser.add_argument("--run_dir", type=str, required=True, help="Run directory")
+    parser.add_argument("--latex", action="store_true", help="Output LaTeX format")
+    parser.add_argument("--csv", action="store_true", help="Output CSV format")
+    parser.add_argument("--summary", action="store_true", help="Print summary stats only")
     args = parser.parse_args()
     
     run_dir = Path(args.run_dir)
-    
     if not run_dir.exists():
-        print(f"Error: Run directory '{run_dir}' does not exist")
+        print(f"Run directory not found: {run_dir}")
         return
     
-    datasets = ["dtd", "fmd", "kth_tips2", "cub200", "flowers102"] if args.all_datasets else [args.dataset or "dtd"]
+    results = load_results(run_dir)
+    if not results:
+        print(f"No results found in {run_dir}")
+        return
     
-    all_results = {}
-    latex_tables = []
+    print(f"Loaded {len(results)} results from {run_dir}")
     
-    for dataset in datasets:
-        # Check if dataset-specific subdirectory exists
-        ds_dir = run_dir / dataset if (run_dir / dataset).exists() else run_dir
-        results = load_results(ds_dir, dataset)
-        
-        if results:
-            all_results[dataset] = results
-            print_summary_table(results, dataset)
-            
-            if args.latex:
-                latex_tables.append(generate_latex_table(results, dataset))
+    aggregated = aggregate_results(results)
     
-    # Generate comparison table
-    if args.all_datasets and len(all_results) > 1:
-        if args.latex:
-            latex_tables.append(generate_comparison_table(all_results))
-    
-    # Save LaTeX output
-    if args.latex and latex_tables:
-        latex_output = "\n\n".join(latex_tables)
-        
-        if args.output:
-            with open(args.output, "w") as f:
-                f.write(latex_output)
-            print(f"\nLaTeX tables saved to: {args.output}")
-        else:
-            print("\n" + "=" * 75)
-            print("LaTeX Tables")
-            print("=" * 75)
-            print(latex_output)
+    if args.summary:
+        print_summary_stats(aggregated)
+    elif args.latex:
+        print_table(aggregated, format="latex")
+    elif args.csv:
+        print_table(aggregated, format="csv")
+    else:
+        print_table(aggregated, format="text")
+        print_summary_stats(aggregated)
 
 
 if __name__ == "__main__":

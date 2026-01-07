@@ -1,11 +1,120 @@
-#五个数据集主实验（约180小时）
-python run_all.py --data_dir data/dtd --dataset dtd --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 --folds 1-10 --seeds 42,43,44 --epochs 200 --run_dir runs/main; python run_all.py --data_dir data/fmd --dataset fmd --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/main; python run_all.py --data_dir data/kth_tips2 --dataset kth_tips2 --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/main; python run_all.py --data_dir data/cub200 --dataset cub200 --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/main; python run_all.py --data_dir data/flowers102 --dataset flowers102 --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/main
+# ============================================================
+# 主实验（约 90 小时）
+# ============================================================
 
-#消融实验（约12小时）
-python run_all.py --data_dir data/dtd --dataset dtd --models twistnet18,twistnet18_no_spiral,twistnet18_no_ais,twistnet18_first_order --folds 1-3 --seeds 42,43,44 --epochs 200 --run_dir runs/ablation
+# DTD
+python run_all.py --data_dir data/dtd --dataset dtd \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 \
+    --folds 1-10 --seeds 42,43,44 --epochs 100 --run_dir runs/main
 
-#效率对比（约150小时）
-python run_all.py --data_dir data/dtd --dataset dtd --models convnext_tiny,convnextv2_tiny,swin_tiny,twistnet18 --folds 1-10 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency; python run_all.py --data_dir data/fmd --dataset fmd --models convnext_tiny,convnextv2_tiny,swin_tiny,twistnet18 --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency; python run_all.py --data_dir data/kth_tips2 --dataset kth_tips2 --models convnext_tiny,convnextv2_tiny,swin_tiny,twistnet18 --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency; python run_all.py --data_dir data/cub200 --dataset cub200 --models convnext_tiny,convnextv2_tiny,swin_tiny,twistnet18 --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency; python run_all.py --data_dir data/flowers102 --dataset flowers102 --models convnext_tiny,convnextv2_tiny,swin_tiny,twistnet18 --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
+# FMD
+python run_all.py --data_dir data/fmd --dataset fmd \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 \
+    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/main
 
+# KTH-TIPS2
+python run_all.py --data_dir data/kth_tips2 --dataset kth_tips2 \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 \
+    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/main
+
+# CUB-200
+python run_all.py --data_dir data/cub200 --dataset cub200 \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 \
+    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/main
+
+# Flowers-102
+python run_all.py --data_dir data/flowers102 --dataset flowers102 \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 \
+    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/main
+
+# ============================================================
+# 消融实验（约 6 小时）
+# ============================================================
+python run_all.py --data_dir data/dtd --dataset dtd \
+    --models twistnet18,twistnet18_no_spiral,twistnet18_no_ais,twistnet18_first_order \
+    --folds 1-3 --seeds 42,43,44 --epochs 100 --run_dir runs/ablation
+
+# ============================================================
+# 效率对比（约 75 小时）
+# ============================================================
+python run_all.py --data_dir data/dtd --dataset dtd \
+    --models convnext_tiny,convnextv2_tiny,swin_tiny,twistnet18 \
+    --folds 1-10 --seeds 42,43,44 --epochs 100 --run_dir runs/efficiency
+
+python run_all.py --data_dir data/fmd --dataset fmd \
+    --models convnext_tiny,convnextv2_tiny,swin_tiny,twistnet18 \
+    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/efficiency
+
+python run_all.py --data_dir data/kth_tips2 --dataset kth_tips2 \
+    --models convnext_tiny,convnextv2_tiny,swin_tiny,twistnet18 \
+    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/efficiency
+
+python run_all.py --data_dir data/cub200 --dataset cub200 \
+    --models convnext_tiny,convnextv2_tiny,swin_tiny,twistnet18 \
+    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/efficiency
+
+python run_all.py --data_dir data/flowers102 --dataset flowers102 \
+    --models convnext_tiny,convnextv2_tiny,swin_tiny,twistnet18 \
+    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/efficiency
+
+# ============================================================
 # 汇总结果
-python summarize_runs.py --run_dir runs/main --latex; python summarize_runs.py --run_dir runs/ablation --latex; python summarize_runs.py --run_dir runs/efficiency --latex
+# ============================================================
+
+# ============================================================
+# Step 1: 跑完实验后，生成所有图表
+# ============================================================
+
+# 生成主实验所有图（柱状图、雷达图、散点图）
+python plot_results.py --run_dir runs/main --save_dir figures --plot bar,radar,scatter
+
+# 生成消融实验图
+python plot_results.py --run_dir runs/ablation --save_dir figures --plot ablation
+
+# 生成效率对比图（不需要实验结果）
+python plot_results.py --save_dir figures --plot efficiency
+
+# ============================================================
+# Step 2: 生成 TwistNet 特有的可视化
+# ============================================================
+
+# Gate 值演化（展示学习过程）
+python plot_results.py --log_file runs/main/dtd_fold1_twistnet18_seed42/log.jsonl --save_dir figures --plot gate
+
+# 交互矩阵热图（需要样本图像）
+python plot_results.py --checkpoint runs/main/dtd_fold1_twistnet18_seed42/best.pt --image data/dtd/images/banded/banded_0001.jpg --save_dir figures --plot interaction
+
+# t-SNE 特征可视化
+python plot_results.py --checkpoint runs/main/dtd_fold1_twistnet18_seed42/best.pt --data_dir data/dtd --save_dir figures --plot tsne
+
+# ============================================================
+# Step 3: 生成 LaTeX 表格
+# ============================================================
+
+# 主实验表格
+python summarize_runs.py --run_dir runs/main --latex > tables/main_results.tex
+
+# 消融实验表格
+python summarize_runs.py --run_dir runs/ablation --latex > tables/ablation.tex
+
+# ============================================================
+# 一键生成所有图表（跑完实验后）
+# ============================================================
+
+# 实验跑完后，只需要这几个：
+
+# 1. 表格（必须）
+python summarize_runs.py --run_dir runs/main --latex
+python summarize_runs.py --run_dir runs/ablation --latex
+
+# 2. 主实验图
+python plot_results.py --run_dir runs/main --plot bar
+
+# 3. 消融图
+python plot_results.py --run_dir runs/ablation --plot ablation
+
+# 4. Gate演化（TwistNet特色）
+python plot_results.py --log_file runs/main/dtd_fold1_twistnet18_seed42/log.jsonl --plot gate
+
+# 5. 交互矩阵（放Method里解释原理）
+python plot_results.py --checkpoint best.pt --image sample.jpg --plot interaction

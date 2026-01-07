@@ -46,13 +46,13 @@ def estimate_mutual_information(x: np.ndarray, y: np.ndarray, bins: int = 32) ->
     
     Theoretical Foundation:
     - MI measures statistical dependence between random variables
-    - For texture: high MI between channels → they co-occur often
+    - For texture: high MI between channels -> they co-occur often
     - Our pairwise products approximate MI for Gaussian features
     
     I(X; Y) = H(X) + H(Y) - H(X, Y)
     
-    For Gaussian: I(X; Y) ≈ -0.5 * log(1 - ρ²)
-    where ρ is the correlation coefficient.
+    For Gaussian: I(X; Y) ~ -0.5 * log(1 - rho^2)
+    where rho is the correlation coefficient.
     """
     x_flat = x.flatten()
     y_flat = y.flatten()
@@ -96,7 +96,7 @@ def analyze_channel_mutual_information(
     Analyze mutual information between channel pairs.
     
     Key Insight: Channels with high MI are the most informative pairs
-    for texture recognition. TwistNet explicitly computes z_i × z_j,
+    for texture recognition. TwistNet explicitly computes z_i x z_j,
     which captures this correlation/MI relationship.
     """
     save_dir = Path(save_dir)
@@ -161,7 +161,7 @@ def analyze_channel_mutual_information(
     ax2.set_title('Channel Correlation', fontsize=12)
     ax2.set_xlabel('Channel j')
     ax2.set_ylabel('Channel i')
-    plt.colorbar(im2, ax=ax2, label='ρ')
+    plt.colorbar(im2, ax=ax2, label='rho')
     
     # MI distribution
     ax3 = fig.add_subplot(gs[2])
@@ -185,10 +185,10 @@ def analyze_channel_mutual_information(
     print("THEORETICAL ANALYSIS: MI and Second-Order Statistics")
     print("=" * 60)
     print(f"Mean MI: {np.mean(upper_tri_mi):.4f}")
-    print(f"Mean |ρ|: {np.mean(np.abs(upper_tri_corr)):.4f}")
+    print(f"Mean |rho|: {np.mean(np.abs(upper_tri_corr)):.4f}")
     print(f"MI-Correlation relationship: r = {np.corrcoef(upper_tri_mi, np.abs(upper_tri_corr)**2)[0,1]:.4f}")
-    print("\nInsight: High MI pairs correspond to high |ρ| pairs.")
-    print("TwistNet's z_i × z_j directly captures this correlation!")
+    print("\nInsight: High MI pairs correspond to high |rho| pairs.")
+    print("TwistNet's z_i x z_j directly captures this correlation!")
     print("=" * 60)
     
     stats = {
@@ -220,11 +220,11 @@ def analyze_local_vs_global_gram(
     Compare local Gram (TwistNet) vs global Gram (style transfer).
     
     Theoretical Foundation:
-    - Global Gram: G_ij = Σ_hw F_ih × F_jh / (H×W)
+    - Global Gram: G_ij = sum_hw F_ih x F_jh / (H x W)
       * Used in neural style transfer (Gatys et al., 2015)
       * Loses spatial information
     
-    - Local Gram (Ours): g_ij(x,y) = z_i(x,y) × z_j(x,y)
+    - Local Gram (Ours): g_ij(x,y) = z_i(x,y) x z_j(x,y)
       * Preserves spatial structure
       * Captures WHERE co-occurrences happen
       * Spatial variance indicates texture complexity
@@ -255,7 +255,7 @@ def analyze_local_vs_global_gram(
         global_gram = torch.bmm(feat_flat, feat_flat.transpose(1, 2)) / (H * W)
         
         # Local Gram statistics
-        # At each (h,w), compute z_i × z_j, then aggregate
+        # At each (h,w), compute z_i x z_j, then aggregate
         local_products = feat_norm.unsqueeze(2) * feat_norm.unsqueeze(1)  # [B, C, C, H, W]
         local_mean = local_products.mean(dim=(3, 4))  # [B, C, C]
         local_std = local_products.std(dim=(3, 4))    # [B, C, C]
@@ -279,7 +279,7 @@ def analyze_local_vs_global_gram(
     
     # Local Gram Mean
     im1 = axes[0, 1].imshow(local_mean_avg, cmap='coolwarm', vmin=-0.3, vmax=0.3)
-    axes[0, 1].set_title('Local Gram Mean\n(E[z_i × z_j] per position)', fontsize=11)
+    axes[0, 1].set_title('Local Gram Mean\n(E[z_i x z_j] per position)', fontsize=11)
     plt.colorbar(im1, ax=axes[0, 1])
     
     # Local Gram Std - KEY INSIGHT!
@@ -313,7 +313,7 @@ def analyze_local_vs_global_gram(
     print(f"Mean spatial std: {local_std_avg.mean():.4f}")
     print(f"Max spatial std: {local_std_avg.max():.4f}")
     print("\nKey Insight:")
-    print("  - High spatial std → texture patterns vary across image")
+    print("  - High spatial std -> texture patterns vary across image")
     print("  - Local Gram captures WHERE features co-occur")
     print("  - Global Gram only captures IF features co-occur")
     print("  - TwistNet preserves this spatial information!")
@@ -479,7 +479,7 @@ TwistNet uses **second-order** operations:
 $$y = \sum_{i,j} w_{ij} (f_i \times f_j)$$
 
 Benefits:
-- O(C²) interaction terms vs O(C) channels
+- O(C^2) interaction terms vs O(C) channels
 - Direct modeling of co-occurrence
 - Single layer captures complex patterns
 
@@ -517,7 +517,7 @@ Standard interaction: $z_i(x,y) \times z_j(x,y)$ (same position)
 
 Spiral-twisted: $z_i(x,y) \times z_j(x+\delta_x, y+\delta_y)$ (displaced)
 
-We use 4 directions (0°, 45°, 90°, 135°) for rotation invariance.
+We use 4 directions (0, 45, 90, 135 degrees) for rotation invariance.
 
 ### 3.3 Connection to Twisted Convolution
 
@@ -573,7 +573,7 @@ def main():
     # Run analyses if data provided
     if args.data_dir:
         # Build model
-        model = build_model("twistnet18", num_classes=args.num_classes)
+        model = build_model("twistnet18", num_classes=args.num_classes, pretrained=True)
         
         if args.checkpoint:
             model.load_state_dict(torch.load(args.checkpoint, map_location='cpu'))

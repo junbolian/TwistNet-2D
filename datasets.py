@@ -70,6 +70,9 @@ class DTDDataset(Dataset):
         self.class_to_idx = {c: i for i, c in enumerate(self.classes)}
         
         label_file = self.data_dir / "labels" / f"{split}{fold}.txt"
+        if not label_file.exists():
+            raise FileNotFoundError(f"Label file not found: {label_file}")
+        
         with open(label_file) as f:
             lines = [l.strip() for l in f if l.strip()]
         
@@ -79,6 +82,9 @@ class DTDDataset(Dataset):
             img_path = images_dir / line
             if img_path.exists():
                 self.samples.append((str(img_path), self.class_to_idx[cls_name]))
+        
+        if len(self.samples) == 0:
+            raise RuntimeError(f"No images found for DTD {split} fold {fold}")
     
     def __len__(self) -> int:
         return len(self.samples)
@@ -110,28 +116,30 @@ def load_fmd(data_dir: str, fold: int = 1, seed: int = 42) -> Tuple[List, List, 
     classes = sorted([d.name for d in data_dir.iterdir() if d.is_dir()])
     class_to_idx = {c: i for i, c in enumerate(classes)}
     
-    random.seed(seed)
+    # Use fold-specific seed for reproducibility
+    rng = random.Random(seed + fold)
     train_samples, val_samples, test_samples = [], [], []
     
     for cls_name in classes:
         cls_dir = data_dir / cls_name
-        images = sorted([str(p) for p in cls_dir.glob("*.jpg")])
-        random.shuffle(images)
+        images = sorted([str(p) for p in cls_dir.glob("*.jpg")] + 
+                       [str(p) for p in cls_dir.glob("*.png")])
+        rng.shuffle(images)
         
         n = len(images)
         fold_size = n // 5
         
-        # 5-fold: each fold uses 1/5 as test, 1/5 as val, 3/5 as train
+        # 5-fold cross-validation
         test_start = (fold - 1) * fold_size
         test_end = test_start + fold_size
-        val_start = test_end % n
-        val_end = (val_start + fold_size) % n
+        val_start = test_end
+        val_end = min(val_start + fold_size, n)
         
         for i, img in enumerate(images):
             label = class_to_idx[cls_name]
             if test_start <= i < test_end:
                 test_samples.append((img, label))
-            elif val_start <= i < val_end or (val_end < val_start and (i >= val_start or i < val_end)):
+            elif val_start <= i < val_end:
                 val_samples.append((img, label))
             else:
                 train_samples.append((img, label))
@@ -159,7 +167,7 @@ def load_kth_tips2(data_dir: str, fold: int = 1, seed: int = 42) -> Tuple[List, 
     classes = sorted([d.name for d in data_dir.iterdir() if d.is_dir()])
     class_to_idx = {c: i for i, c in enumerate(classes)}
     
-    random.seed(seed)
+    rng = random.Random(seed + fold)
     train_samples, val_samples, test_samples = [], [], []
     
     for cls_name in classes:
@@ -172,7 +180,7 @@ def load_kth_tips2(data_dir: str, fold: int = 1, seed: int = 42) -> Tuple[List, 
             images = list(sample_dir.glob("*.png")) + list(sample_dir.glob("*.jpg"))
             all_images.extend([str(p) for p in images])
         
-        random.shuffle(all_images)
+        rng.shuffle(all_images)
         n = len(all_images)
         fold_size = n // 5
         
@@ -224,7 +232,7 @@ def load_cub200(data_dir: str, fold: int = 1, seed: int = 42) -> Tuple[List, Lis
     with open(data_dir / "image_class_labels.txt") as f:
         id_to_label = {int(l.split()[0]): int(l.split()[1]) - 1 for l in f}  # 1-indexed to 0-indexed
     
-    random.seed(seed + fold)
+    rng = random.Random(seed + fold)
     train_images, test_samples = [], []
     
     for img_id, rel_path in id_to_path.items():
@@ -236,7 +244,7 @@ def load_cub200(data_dir: str, fold: int = 1, seed: int = 42) -> Tuple[List, Lis
             test_samples.append((img_path, label))
     
     # Split train into train/val (90/10)
-    random.shuffle(train_images)
+    rng.shuffle(train_images)
     val_size = len(train_images) // 10
     val_samples = train_images[:val_size]
     train_samples = train_images[val_size:]
@@ -296,7 +304,7 @@ def get_dataloaders(
     fold: int = 1,
     train_transform: Callable = None,
     eval_transform: Callable = None,
-    batch_size: int = 64,
+    batch_size: int = 32,
     num_workers: int = 4,
     seed: int = 42,
 ) -> Tuple[DataLoader, DataLoader, DataLoader, int]:

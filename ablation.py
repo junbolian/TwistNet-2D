@@ -13,17 +13,35 @@ Ablations:
 import subprocess
 import sys
 import argparse
+from pathlib import Path
 from itertools import product
 
 
+def is_completed(run_dir: str, config: dict, dataset: str, fold: int, seed: int) -> bool:
+    """Check if ablation experiment is completed."""
+    name = "_".join(f"{k}={v}" for k, v in sorted(config.items()))
+    run_name = f"{dataset}_fold{fold}_{name}_seed{seed}"
+    results_file = Path(run_dir) / run_name / "results.json"
+    return results_file.exists()
+
+
 def run_exp(config: dict, data_dir: str, dataset: str = "dtd", fold: int = 1,
-            seed: int = 42, epochs: int = 200, run_dir: str = "runs_ablation", dry_run: bool = False):
+            seed: int = 42, epochs: int = 100, run_dir: str = "runs_ablation", 
+            dry_run: bool = False, force: bool = False):
+    
+    name = "_".join(f"{k}={v}" for k, v in sorted(config.items()))
+    
+    # Check if already completed
+    if not force and is_completed(run_dir, config, dataset, fold, seed):
+        print(f"[SKIP] {name} (already completed)")
+        return
+    
     cmd = [
         sys.executable, "train.py",
         "--data_dir", data_dir, "--dataset", dataset,
         "--fold", str(fold), "--seed", str(seed),
         "--model", "twistnet18", "--epochs", str(epochs),
-        "--run_dir", run_dir, "--amp",
+        "--run_dir", run_dir, "--amp", "--pretrained",
     ]
     
     if "num_heads" in config:
@@ -37,13 +55,25 @@ def run_exp(config: dict, data_dir: str, dataset: str = "dtd", fold: int = 1,
     if "gate_init" in config:
         cmd.extend(["--gate_init", str(config["gate_init"])])
     
-    name = "_".join(f"{k}={v}" for k, v in config.items())
-    print(f"\n[Ablation] {name}")
+    # Check for checkpoint
+    run_name = f"{dataset}_fold{fold}_{name}_seed{seed}"
+    checkpoint = Path(run_dir) / run_name / "checkpoint.pt"
+    if checkpoint.exists():
+        cmd.append("--resume")
+        print(f"\n[RESUME] {name}")
+    else:
+        print(f"\n[NEW] {name}")
     
     if dry_run:
         print(f"  [DRY] {' '.join(cmd)}")
     else:
-        subprocess.run(cmd, check=True)
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"  [FAILED] {e}")
+        except KeyboardInterrupt:
+            print("\n[INTERRUPTED]")
+            sys.exit(1)
 
 
 def ablation_num_heads(data_dir: str, **kwargs):
@@ -89,9 +119,11 @@ def ablation_gate_init(data_dir: str, **kwargs):
 
 
 def run_all_ablations(data_dir: str, dataset: str = "dtd", fold: int = 1,
-                      seed: int = 42, epochs: int = 200, dry_run: bool = False):
+                      seed: int = 42, epochs: int = 100, dry_run: bool = False,
+                      force: bool = False):
     """Run all ablation studies."""
-    kwargs = {"dataset": dataset, "fold": fold, "seed": seed, "epochs": epochs, "dry_run": dry_run}
+    kwargs = {"dataset": dataset, "fold": fold, "seed": seed, "epochs": epochs, 
+              "dry_run": dry_run, "force": force}
     
     print("=" * 60)
     print("TwistNet-2D Ablation Studies")
@@ -113,8 +145,9 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, default="dtd")
     parser.add_argument("--fold", type=int, default=1)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--epochs", type=int, default=200)
+    parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--dry_run", action="store_true")
+    parser.add_argument("--force", action="store_true", help="Force re-run completed experiments")
     parser.add_argument("--ablation", type=str, default="all",
                         choices=["all", "heads", "stages", "components", "gate"])
     args = parser.parse_args()
@@ -128,5 +161,5 @@ if __name__ == "__main__":
     }
     
     kwargs = {"dataset": args.dataset, "fold": args.fold, "seed": args.seed,
-              "epochs": args.epochs, "dry_run": args.dry_run}
+              "epochs": args.epochs, "dry_run": args.dry_run, "force": args.force}
     funcs[args.ablation](args.data_dir, **kwargs)

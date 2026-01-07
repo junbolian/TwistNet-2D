@@ -4,7 +4,7 @@ TwistNet-2D: Spiral-Twisted Channel Interactions for Texture Recognition
 
 Model Groups:
 -------------
-Group 1 - Fair Comparison (10-15M params, train from scratch):
+Group 1 - Fair Comparison (10-15M params, ImageNet pretrained + fine-tune):
   - resnet18 (11.7M) - CVPR 2016
   - seresnet18 (11.8M) - CVPR 2018
   - convnextv2_nano (15.6M) - CVPR 2023
@@ -19,12 +19,12 @@ Usage:
 ------
     from models import build_model, list_models, count_params
     
-    # List available models
-    list_models()
+    # Build model with pretrained weights (RECOMMENDED)
+    model = build_model('twistnet18', num_classes=47, pretrained=True)
+    model = build_model('resnet18', num_classes=47, pretrained=True)
     
-    # Build model
-    model = build_model('twistnet18', num_classes=47)
-    model = build_model('convnextv2_nano', num_classes=47, pretrained=False)
+    # Build model from scratch (NOT recommended for small datasets)
+    model = build_model('resnet18', num_classes=47, pretrained=False)
 """
 
 from __future__ import annotations
@@ -53,19 +53,12 @@ MODEL_REGISTRY = {
     # =========================================================================
     # Group 1: Fair Comparison (10-16M params) - Main experiments
     # =========================================================================
-    # Classic
     'resnet18': {'timm_name': 'resnet18', 'params': '11.7M', 'venue': 'CVPR 2016', 'group': 1},
     'seresnet18': {'timm_name': 'seresnet18', 'params': '11.8M', 'venue': 'CVPR 2018', 'group': 1},
-    
-    # 2023 Models
     'convnextv2_nano': {'timm_name': 'convnextv2_nano', 'params': '15.6M', 'venue': 'CVPR 2023', 'group': 1},
     'fastvit_sa12': {'timm_name': 'fastvit_sa12', 'params': '10.9M', 'venue': 'ICCV 2023', 'group': 1},
     'efficientformerv2_s1': {'timm_name': 'efficientformerv2_s1', 'params': '12.7M', 'venue': 'ICCV 2023', 'group': 1},
-    
-    # 2024 Models
     'repvit_m1_5': {'timm_name': 'repvit_m1_5', 'params': '14.0M', 'venue': 'CVPR 2024', 'group': 1},
-    
-    # Ours
     'twistnet18': {'timm_name': None, 'params': '11.6M', 'venue': 'Ours', 'group': 1},
     
     # =========================================================================
@@ -188,7 +181,7 @@ class SpiralTwist(nn.Module):
     Spatial Twist with directional displacement.
     
     Captures cross-position correlations essential for texture patterns.
-    4 directions: 0° (→), 45° (↗), 90° (↑), 135° (↖)
+    4 directions: 0° (→), 45° (↘), 90° (↓), 135° (↙)
     """
     def __init__(self, dim: int, direction: int = 0, kernel_size: int = 3):
         super().__init__()
@@ -212,9 +205,10 @@ class SpiralTwist(nn.Module):
             angle = math.radians(angles[self.direction])
             dx = int(round(math.cos(angle)))
             dy = int(round(math.sin(angle)))
-            ox, oy = center + dx, center + dy
-            if 0 <= ox < k and 0 <= oy < k:
-                self.dwconv.weight[:, :, oy, ox] = 0.5
+            
+            ny, nx = center + dy, center + dx
+            if 0 <= ny < k and 0 <= nx < k:
+                self.dwconv.weight[:, :, ny, nx] = 0.5
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.dwconv(x) * self.scale
@@ -222,78 +216,91 @@ class SpiralTwist(nn.Module):
 
 class SpiralTwistedInteractionHead(nn.Module):
     """
-    Single head of Spiral-Twisted Channel Interaction.
+    Single STCI Head: Channel reduction -> Spiral Twist -> L2 Norm -> Pairwise Products.
     
-    Computes: z_i(x,y) × z_j_twisted(x,y)
+    Output: [first-order features, second-order interaction features]
     """
-    def __init__(self, in_ch: int, c_red: int, direction: int = 0, use_spiral: bool = True):
+    def __init__(self, in_ch: int, c_red: int = 8, direction: int = 0, use_spiral: bool = True):
         super().__init__()
         self.c_red = c_red
         self.use_spiral = use_spiral
-        self.direction = direction
         
+        # Channel reduction
         self.reduce = nn.Sequential(
             conv1x1(in_ch, c_red),
             nn.BatchNorm2d(c_red),
             nn.ReLU(inplace=True)
         )
-        self.spiral = SpiralTwist(c_red, direction) if use_spiral else nn.Identity()
         
-        idx_i, idx_j = torch.triu_indices(c_red, c_red, offset=0)
-        self.register_buffer("idx_i", idx_i, persistent=False)
-        self.register_buffer("idx_j", idx_j, persistent=False)
+        # Spiral twist (directional displacement)
+        if use_spiral:
+            self.twist = SpiralTwist(c_red, direction)
+        else:
+            self.twist = nn.Identity()
         
-        self.pair_dim = int(idx_i.numel())
-        self.out_dim = c_red + self.pair_dim
-
+        # Pairwise interaction indices (upper triangular including diagonal)
+        self.n_pairs = c_red * (c_red + 1) // 2
+        idx_i, idx_j = [], []
+        for i in range(c_red):
+            for j in range(i, c_red):
+                idx_i.append(i)
+                idx_j.append(j)
+        self.register_buffer("idx_i", torch.tensor(idx_i))
+        self.register_buffer("idx_j", torch.tensor(idx_j))
+        
+        # Output dimension: first-order + second-order
+        self.out_dim = c_red + self.n_pairs
+    
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         z = self.reduce(x)
-        z_twisted = self.spiral(z)
+        z_twist = self.twist(z)
         
+        # L2 normalize along channel dimension
         z_norm = F.normalize(z, p=2, dim=1, eps=1e-6)
-        z_tw_norm = F.normalize(z_twisted, p=2, dim=1, eps=1e-6)
+        z_twist_norm = F.normalize(z_twist, p=2, dim=1, eps=1e-6)
         
-        zi = z_norm.index_select(1, self.idx_i)
-        zj = z_tw_norm.index_select(1, self.idx_j)
-        pair = zi * zj
+        # Pairwise products
+        z_i = z_norm[:, self.idx_i]
+        z_j = z_twist_norm[:, self.idx_j]
+        interactions = z_i * z_j
         
-        return torch.cat([z_norm, pair], dim=1)
+        # Concatenate first-order and second-order features
+        return torch.cat([z_norm, interactions], dim=1)
     
     def get_interaction_matrix(self, x: torch.Tensor) -> torch.Tensor:
+        """Return full C_r x C_r interaction matrix for visualization."""
         z = self.reduce(x)
-        z_tw = self.spiral(z)
+        z_twist = self.twist(z)
         z_norm = F.normalize(z, p=2, dim=1, eps=1e-6)
-        z_tw_norm = F.normalize(z_tw, p=2, dim=1, eps=1e-6)
+        z_twist_norm = F.normalize(z_twist, p=2, dim=1, eps=1e-6)
+        
         B, C, H, W = z_norm.shape
-        z_flat = z_norm.view(B, C, -1)
-        z_tw_flat = z_tw_norm.view(B, C, -1)
-        return torch.bmm(z_flat, z_tw_flat.transpose(1, 2)) / (H * W)
+        z1 = z_norm.view(B, C, 1, H, W)
+        z2 = z_twist_norm.view(B, 1, C, H, W)
+        return (z1 * z2).mean(dim=(3, 4))
 
 
 class AdaptiveInteractionSelection(nn.Module):
-    """SE-style attention for selecting important interactions."""
-    def __init__(self, ch: int, rd: int = 4):
+    """SE-style attention on interaction channels."""
+    def __init__(self, dim: int, reduction: int = 4):
         super().__init__()
-        mid = max(ch // rd, 16)
+        mid = max(dim // reduction, 16)
         self.fc = nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
-            nn.Linear(ch, mid),
+            nn.Linear(dim, mid),
             nn.ReLU(inplace=True),
-            nn.Linear(mid, ch),
+            nn.Linear(mid, dim),
             nn.Sigmoid()
         )
-
+    
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x * self.fc(x).view(x.size(0), -1, 1, 1)
 
 
 class MultiHeadSpiralTwistedInteraction(nn.Module):
     """
-    Multi-Head Spiral-Twisted Channel Interaction (MH-STCI).
-    
-    Multiple heads with different spiral directions (0°, 45°, 90°, 135°)
-    for rotation-invariant co-occurrence detection.
+    Multi-Head STCI: Aggregates multiple directional heads with AIS.
     """
     def __init__(
         self,
@@ -416,6 +423,7 @@ class TwistNet(nn.Module):
         self.use_spiral = use_spiral
         self.gate_init = gate_init
         
+        # Stem: single 3x3 conv with stride 2
         self.stem = nn.Sequential(
             nn.Conv2d(3, base_width, 3, 2, 1, bias=False),
             nn.BatchNorm2d(base_width),
@@ -505,35 +513,95 @@ class TwistNet(nn.Module):
 
 
 # =============================================================================
+# Pretrained Weight Loading
+# =============================================================================
+
+def load_pretrained_resnet18_weights(model: nn.Module, verbose: bool = True) -> nn.Module:
+    """
+    Load ResNet-18 ImageNet pretrained weights into TwistNet.
+    Only loads compatible layers (stem, layer1, layer2, conv parts of layer3/4).
+    STCI modules remain randomly initialized.
+    """
+    if not TIMM_AVAILABLE:
+        print("[Warning] timm not available, cannot load pretrained weights")
+        return model
+    
+    # Load pretrained ResNet-18
+    resnet18 = timm.create_model('resnet18', pretrained=True)
+    resnet_state = resnet18.state_dict()
+    model_state = model.state_dict()
+    
+    loaded_keys = []
+    skipped_keys = []
+    
+    for key in model_state.keys():
+        # Skip STCI related modules
+        if any(x in key for x in ['stci', 'twist', 'ais', 'gate', 'mhstci', 'heads', 'reduce', 'proj', 'norm']):
+            skipped_keys.append(key)
+            continue
+        
+        # Skip classifier (different num_classes)
+        if 'fc' in key:
+            skipped_keys.append(key)
+            continue
+        
+        # Map stem
+        if key.startswith('stem.0'):  # conv
+            resnet_key = key.replace('stem.0', 'conv1')
+        elif key.startswith('stem.1'):  # bn
+            resnet_key = key.replace('stem.1', 'bn1')
+        else:
+            resnet_key = key
+        
+        # Check if exists in ResNet weights
+        if resnet_key in resnet_state:
+            if model_state[key].shape == resnet_state[resnet_key].shape:
+                model_state[key] = resnet_state[resnet_key]
+                loaded_keys.append(key)
+            else:
+                skipped_keys.append(f"{key} (shape mismatch)")
+        else:
+            skipped_keys.append(f"{key} (not in resnet)")
+    
+    model.load_state_dict(model_state)
+    
+    if verbose:
+        print(f"[Pretrained] Loaded {len(loaded_keys)} layers from ResNet-18 ImageNet weights")
+        print(f"[Pretrained] Skipped {len(skipped_keys)} layers (STCI/FC/incompatible)")
+    
+    return model
+
+
+# =============================================================================
 # Model Factory
 # =============================================================================
 
-def build_model(name: str, num_classes: int = 47, pretrained: bool = False, **kwargs) -> nn.Module:
+def build_model(name: str, num_classes: int = 47, pretrained: bool = True, **kwargs) -> nn.Module:
     """
     Build model by name.
     
     Args:
         name: Model name (see list_models() for options)
         num_classes: Number of output classes
-        pretrained: Use ImageNet pretrained weights (for timm models)
+        pretrained: Use ImageNet pretrained weights (CRITICAL for small datasets!)
         **kwargs: Additional arguments for TwistNet
     
     Returns:
         nn.Module
     
     Examples:
-        # TwistNet
-        model = build_model('twistnet18', num_classes=47)
-        
-        # timm models
+        # With pretrained (RECOMMENDED for DTD, FMD, etc.)
+        model = build_model('twistnet18', num_classes=47, pretrained=True)
         model = build_model('resnet18', num_classes=47, pretrained=True)
-        model = build_model('convnextv2_nano', num_classes=47, pretrained=False)
+        
+        # From scratch (NOT recommended)
+        model = build_model('resnet18', num_classes=47, pretrained=False)
     """
     name = name.lower().replace("-", "_")
     
     # TwistNet (custom implementation)
     if name == "twistnet18":
-        return TwistNet(
+        model = TwistNet(
             layers=[2, 2, 2, 2],
             num_classes=num_classes,
             twist_stages=kwargs.get("twist_stages", (3, 4)),
@@ -543,10 +611,13 @@ def build_model(name: str, num_classes: int = 47, pretrained: bool = False, **kw
             use_spiral=kwargs.get("use_spiral", True),
             gate_init=kwargs.get("gate_init", -2.0),
         )
+        if pretrained:
+            model = load_pretrained_resnet18_weights(model)
+        return model
     
     # Ablation: TwistNet without spiral (same position interaction)
     if name == "twistnet18_no_spiral":
-        return TwistNet(
+        model = TwistNet(
             layers=[2, 2, 2, 2],
             num_classes=num_classes,
             twist_stages=(3, 4),
@@ -554,10 +625,13 @@ def build_model(name: str, num_classes: int = 47, pretrained: bool = False, **kw
             use_ais=True,
             use_spiral=False,
         )
+        if pretrained:
+            model = load_pretrained_resnet18_weights(model)
+        return model
     
     # Ablation: TwistNet without AIS
     if name == "twistnet18_no_ais":
-        return TwistNet(
+        model = TwistNet(
             layers=[2, 2, 2, 2],
             num_classes=num_classes,
             twist_stages=(3, 4),
@@ -565,15 +639,20 @@ def build_model(name: str, num_classes: int = 47, pretrained: bool = False, **kw
             use_ais=False,
             use_spiral=True,
         )
+        if pretrained:
+            model = load_pretrained_resnet18_weights(model)
+        return model
     
     # Ablation: TwistNet with only 1st-order (no pairwise products)
     if name == "twistnet18_first_order":
-        # This is essentially ResNet-18
-        return TwistNet(
+        model = TwistNet(
             layers=[2, 2, 2, 2],
             num_classes=num_classes,
             twist_stages=(),  # No twist blocks
         )
+        if pretrained:
+            model = load_pretrained_resnet18_weights(model)
+        return model
     
     # timm models
     if not TIMM_AVAILABLE:
@@ -629,59 +708,25 @@ if __name__ == "__main__":
     print("TwistNet-2D Model Zoo")
     print("=" * 75)
     
-    # List available models
     list_models()
     
     print("\n" + "=" * 75)
-    print("Testing Model Builds")
+    print("Testing Model Builds (with pretrained weights)")
     print("=" * 75)
     
     x = torch.randn(2, 3, 224, 224)
     
-    # Test Group 1: Fair comparison (MAIN)
-    print("\n[Group 1: Fair Comparison - 10-16M params - MAIN]")
-    for name in get_fair_comparison_models():
-        try:
-            model = build_model(name, num_classes=47)
-            model.eval()
-            with torch.no_grad():
-                y = model(x)
-            params = count_params(model) / 1e6
-            print(f"  {name:<25} {params:>6.2f}M  output: {y.shape}  ✓")
-        except Exception as e:
-            print(f"  {name:<25} FAILED: {e}")
+    # Test TwistNet with pretrained
+    print("\n[TwistNet-18 with ImageNet pretrained backbone]")
+    model = build_model('twistnet18', num_classes=47, pretrained=True)
+    model.eval()
+    with torch.no_grad():
+        y = model(x)
+    params = count_params(model) / 1e6
+    print(f"  twistnet18: {params:.2f}M  output: {y.shape}")
     
-    # Test Group 2: Efficiency comparison (only if timm available)
-    if TIMM_AVAILABLE:
-        print("\n[Group 2: Efficiency Comparison - Official Tiny Models]")
-        for name in get_efficiency_comparison_models():
-            try:
-                model = build_model(name, num_classes=47, pretrained=False)
-                model.eval()
-                with torch.no_grad():
-                    y = model(x)
-                params = count_params(model) / 1e6
-                print(f"  {name:<25} {params:>6.2f}M  output: {y.shape}  ✓")
-            except Exception as e:
-                print(f"  {name:<25} FAILED: {e}")
-    
-    # Test Ablation models
-    print("\n[Ablation Models]")
-    for name in get_ablation_models():
-        try:
-            model = build_model(name, num_classes=47)
-            model.eval()
-            with torch.no_grad():
-                y = model(x)
-            params = count_params(model) / 1e6
-            print(f"  {name:<30} {params:>6.2f}M  output: {y.shape}  ✓")
-        except Exception as e:
-            print(f"  {name:<30} FAILED: {e}")
-    
-    # TwistNet gate values
-    print("\n" + "-" * 75)
-    print("TwistNet-18 Initial Gate Values:")
-    model = build_model("twistnet18", num_classes=47)
+    # Test gate values
+    print("\nInitial gate values:")
     for name, val in list(model.get_gate_values().items())[:4]:
         print(f"  {name.split('.')[-2]}: {val:.4f}")
     

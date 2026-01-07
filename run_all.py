@@ -2,14 +2,21 @@
 """
 run_all.py - Batch experiment runner for TwistNet-2D benchmarks.
 
+Features:
+- Automatically skips completed experiments (checks results.json)
+- Resume from checkpoint for interrupted experiments
+- Parallel-safe: multiple instances can run different experiments
+
 Usage:
     python run_all.py --data_dir data/dtd --dataset dtd --folds 1-10 --seeds 42,43,44 \
-        --models resnet18,twistnet18 --epochs 200
+        --models resnet18,twistnet18 --epochs 100
 """
 
 import argparse
 import subprocess
 import sys
+import json
+from pathlib import Path
 from itertools import product
 
 
@@ -40,6 +47,18 @@ VALID_MODELS = [
 ]
 
 
+def is_experiment_completed(run_dir: Path, run_name: str) -> bool:
+    """Check if experiment is already completed (has results.json)."""
+    results_file = run_dir / run_name / "results.json"
+    return results_file.exists()
+
+
+def has_checkpoint(run_dir: Path, run_name: str) -> bool:
+    """Check if experiment has a checkpoint to resume from."""
+    checkpoint_file = run_dir / run_name / "checkpoint.pt"
+    return checkpoint_file.exists()
+
+
 def main():
     ap = argparse.ArgumentParser(description="Batch experiment runner")
     ap.add_argument("--data_dir", type=str, required=True, help="Path to dataset")
@@ -47,17 +66,19 @@ def main():
     ap.add_argument("--folds", type=str, default="1", help="Fold range (e.g., '1-10' or '1,2,3')")
     ap.add_argument("--seeds", type=str, default="42", help="Seed list (e.g., '42,43,44')")
     ap.add_argument("--models", type=str, default="resnet18,twistnet18", help="Model list")
-    ap.add_argument("--epochs", type=int, default=200, help="Number of epochs")
-    ap.add_argument("--batch_size", type=int, default=64, help="Batch size")
-    ap.add_argument("--lr", type=float, default=0.05, help="Learning rate")
+    ap.add_argument("--epochs", type=int, default=100, help="Number of epochs")
+    ap.add_argument("--batch_size", type=int, default=32, help="Batch size")
+    ap.add_argument("--lr", type=float, default=0.01, help="Learning rate")
     ap.add_argument("--img_size", type=int, default=224, help="Image size")
     ap.add_argument("--run_dir", type=str, default="runs", help="Output directory")
     ap.add_argument("--dry_run", action="store_true", help="Print commands without running")
+    ap.add_argument("--force", action="store_true", help="Force re-run even if completed")
     args = ap.parse_args()
     
     folds = parse_range(args.folds)
     seeds = parse_range(args.seeds)
     models = [m.strip() for m in args.models.split(",")]
+    run_dir = Path(args.run_dir)
     
     # Validate models
     for m in models:
@@ -75,15 +96,38 @@ def main():
     print(f"Models: {models}")
     print(f"Folds: {folds}")
     print(f"Seeds: {seeds}")
-    print(f"Total runs: {total}")
+    print(f"Epochs: {args.epochs}")
+    print(f"Total experiments: {total}")
     print("=" * 60)
+    
+    # Count status
+    completed = 0
+    to_run = []
+    
+    for model, fold, seed in product(models, folds, seeds):
+        run_name = f"{args.dataset}_fold{fold}_{model}_seed{seed}"
+        if is_experiment_completed(run_dir, run_name) and not args.force:
+            completed += 1
+        else:
+            to_run.append((model, fold, seed, run_name))
+    
+    print(f"Already completed: {completed}/{total}")
+    print(f"To run: {len(to_run)}/{total}")
+    print("=" * 60)
+    
+    if not to_run:
+        print("All experiments completed!")
+        return
     
     count, failed = 0, []
     
-    for model, fold, seed in product(models, folds, seeds):
+    for model, fold, seed, run_name in to_run:
         count += 1
-        run_name = f"{args.dataset}_fold{fold}_{model}_seed{seed}"
-        print(f"\n[{count}/{total}] {run_name}")
+        
+        # Check if can resume
+        resume = has_checkpoint(run_dir, run_name)
+        status = "[RESUME]" if resume else "[NEW]"
+        print(f"\n{status} [{count}/{len(to_run)}] {run_name}")
         
         cmd = [
             sys.executable, "train.py",
@@ -98,13 +142,16 @@ def main():
             "--img_size", str(args.img_size),
             "--run_dir", args.run_dir,
             "--amp",
+            "--pretrained",  # CRITICAL: use pretrained weights
         ]
+        
+        if resume:
+            cmd.append("--resume")
         
         if args.dry_run:
             print(f"  [DRY] {' '.join(cmd)}")
         else:
             try:
-                # Use cwd to ensure modules are found
                 import os
                 script_dir = os.path.dirname(os.path.abspath(__file__))
                 subprocess.run(cmd, check=True, cwd=script_dir)
@@ -113,12 +160,15 @@ def main():
                 failed.append(run_name)
             except KeyboardInterrupt:
                 print("\n[INTERRUPTED by user]")
+                print("Run again to resume from checkpoint.")
                 sys.exit(1)
     
     print("\n" + "=" * 60)
-    print(f"Completed: {count - len(failed)}/{count}")
+    print(f"Completed: {count - len(failed)}/{len(to_run)}")
+    print(f"Previously completed: {completed}")
+    print(f"Total: {completed + count - len(failed)}/{total}")
     if failed:
-        print(f"Failed runs ({len(failed)}):")
+        print(f"\nFailed runs ({len(failed)}):")
         for name in failed:
             print(f"  - {name}")
     print("=" * 60)
