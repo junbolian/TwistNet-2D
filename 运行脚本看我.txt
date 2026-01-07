@@ -45,27 +45,27 @@ checkpoints/twistnet18_imagenet.pt  ← 这个文件用于下游任务
 
 # DTD
 python run_all.py --data_dir data/dtd --dataset dtd \
-    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
     --folds 1-10 --seeds 42,43,44 --epochs 100 --run_dir runs/main
 
 # FMD
 python run_all.py --data_dir data/fmd --dataset fmd \
-    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
     --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/main
 
 # KTH-TIPS2
 python run_all.py --data_dir data/kth_tips2 --dataset kth_tips2 \
-    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
     --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/main
 
 # CUB-200
 python run_all.py --data_dir data/cub200 --dataset cub200 \
-    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
     --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/main
 
 # Flowers-102
 python run_all.py --data_dir data/flowers102 --dataset flowers102 \
-    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s1,repvit_m1_5,twistnet18 \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
     --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/main
 
 # ============================================================

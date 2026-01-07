@@ -60,7 +60,7 @@ MODEL_REGISTRY = {
     'seresnet18': {'timm_name': 'seresnet18', 'params': '11.8M', 'venue': 'CVPR 2018', 'group': 1, 'pretrained': True},  # Uses ResNet-18 weights
     'convnextv2_nano': {'timm_name': 'convnextv2_nano', 'params': '15.6M', 'venue': 'CVPR 2023', 'group': 1, 'pretrained': True},
     'fastvit_sa12': {'timm_name': 'fastvit_sa12', 'params': '10.9M', 'venue': 'ICCV 2023', 'group': 1, 'pretrained': True},
-    'efficientformerv2_s1': {'timm_name': 'efficientformerv2_s1', 'params': '12.7M', 'venue': 'ICCV 2023', 'group': 1, 'pretrained': True},
+    'efficientformerv2_s2': {'timm_name': 'efficientformerv2_s1', 'params': '12.7M', 'venue': 'ICCV 2023', 'group': 1, 'pretrained': True},
     'repvit_m1_5': {'timm_name': 'repvit_m1_5', 'params': '14.0M', 'venue': 'CVPR 2024', 'group': 1, 'pretrained': True},
     'twistnet18': {'timm_name': None, 'params': '11.6M', 'venue': 'Ours', 'group': 1, 'pretrained': True},
     
@@ -419,6 +419,7 @@ class TwistNet(nn.Module):
         use_ais: bool = True,
         use_spiral: bool = True,
         gate_init: float = -2.0,
+        stem_type: str = "resnet",  # "resnet" or "lightweight"
     ):
         super().__init__()
         self.in_ch = base_width
@@ -429,12 +430,28 @@ class TwistNet(nn.Module):
         self.use_spiral = use_spiral
         self.gate_init = gate_init
         
-        # Stem: single 3x3 conv with stride 2
-        self.stem = nn.Sequential(
-            nn.Conv2d(3, base_width, 3, 2, 1, bias=False),
-            nn.BatchNorm2d(base_width),
-            nn.ReLU(inplace=True)
-        )
+        # Stem options:
+        # - "resnet": 7×7 conv + maxpool, output 56×56 (same FLOPs as ResNet)
+        # - "lightweight": 3×3 conv stride 4, output 56×56 (fewer params, same FLOPs)
+        if stem_type == "resnet":
+            self.stem = nn.Sequential(
+                nn.Conv2d(3, base_width, 7, 2, 3, bias=False),  # 224 -> 112
+                nn.BatchNorm2d(base_width),
+                nn.ReLU(inplace=True),
+                nn.MaxPool2d(kernel_size=3, stride=2, padding=1)  # 112 -> 56
+            )
+        elif stem_type == "lightweight":
+            # Two 3×3 convs to achieve 4× downsampling (same output size as resnet stem)
+            self.stem = nn.Sequential(
+                nn.Conv2d(3, base_width // 2, 3, 2, 1, bias=False),  # 224 -> 112
+                nn.BatchNorm2d(base_width // 2),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(base_width // 2, base_width, 3, 2, 1, bias=False),  # 112 -> 56
+                nn.BatchNorm2d(base_width),
+                nn.ReLU(inplace=True),
+            )
+        else:
+            raise ValueError(f"Unknown stem_type: {stem_type}")
         
         widths = [base_width * (2 ** i) for i in range(4)]
         self.layer1 = self._make_layer(1, widths[0], layers[0], 1)
@@ -775,6 +792,7 @@ def build_model(name: str, num_classes: int = 47, pretrained: bool = True, **kwa
             use_ais=kwargs.get("use_ais", True),
             use_spiral=kwargs.get("use_spiral", True),
             gate_init=kwargs.get("gate_init", -2.0),
+            stem_type=kwargs.get("stem_type", "resnet"),  # Use ResNet stem for fair FLOPs comparison
         )
         if pretrained:
             model = _load_twistnet_pretrained(model, pretrained)
@@ -789,6 +807,7 @@ def build_model(name: str, num_classes: int = 47, pretrained: bool = True, **kwa
             num_heads=4,
             use_ais=True,
             use_spiral=False,
+            stem_type="resnet",
         )
         if pretrained:
             model = _load_twistnet_pretrained(model, pretrained)
@@ -803,6 +822,7 @@ def build_model(name: str, num_classes: int = 47, pretrained: bool = True, **kwa
             num_heads=4,
             use_ais=False,
             use_spiral=True,
+            stem_type="resnet",
         )
         if pretrained:
             model = _load_twistnet_pretrained(model, pretrained)
@@ -814,6 +834,7 @@ def build_model(name: str, num_classes: int = 47, pretrained: bool = True, **kwa
             layers=[2, 2, 2, 2],
             num_classes=num_classes,
             twist_stages=(),  # No twist blocks
+            stem_type="resnet",
         )
         if pretrained:
             model = _load_twistnet_pretrained(model, pretrained)
