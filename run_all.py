@@ -36,7 +36,7 @@ def parse_range(s: str):
 VALID_MODELS = [
     # Group 1: Fair comparison (10-16M params) - MAIN
     "resnet18", "seresnet18", "convnextv2_nano", "convnextv2_pico",
-    "fastvit_sa12", "efficientformerv2_s1", "repvit_m1_5",
+    "fastvit_sa12", "efficientformerv2_s2", "repvit_m1_5",
     "twistnet18",
     # Ablation
     "twistnet18_no_spiral", "twistnet18_no_ais", "twistnet18_first_order",

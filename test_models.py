@@ -20,7 +20,7 @@ def test_models():
     print("\n[Group 1: Fair Comparison (10-16M params)]")
     models_group1 = [
         'resnet18', 'seresnet18', 'convnextv2_nano', 
-        'fastvit_sa12', 'efficientformerv2_s1', 'repvit_m1_5',
+        'fastvit_sa12', 'efficientformerv2_s2', 'repvit_m1_5',
         'twistnet18'
     ]
     
@@ -107,7 +107,7 @@ def quick_test():
     x = torch.randn(2, 3, 224, 224).to(device)
     
     models = ['resnet18', 'seresnet18', 'convnextv2_nano', 'fastvit_sa12', 
-              'efficientformerv2_s1', 'repvit_m1_5', 'twistnet18']
+              'efficientformerv2_s2', 'repvit_m1_5', 'twistnet18']
     
     for name in models:
         model = build_model(name, num_classes=47, pretrained=False).to(device)

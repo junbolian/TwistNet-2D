@@ -60,7 +60,7 @@ MODEL_REGISTRY = {
     'seresnet18': {'timm_name': 'seresnet18', 'params': '11.8M', 'venue': 'CVPR 2018', 'group': 1, 'pretrained': True},  # Uses ResNet-18 weights
     'convnextv2_nano': {'timm_name': 'convnextv2_nano', 'params': '15.6M', 'venue': 'CVPR 2023', 'group': 1, 'pretrained': True},
     'fastvit_sa12': {'timm_name': 'fastvit_sa12', 'params': '10.9M', 'venue': 'ICCV 2023', 'group': 1, 'pretrained': True},
-    'efficientformerv2_s2': {'timm_name': 'efficientformerv2_s1', 'params': '12.7M', 'venue': 'ICCV 2023', 'group': 1, 'pretrained': True},
+    'efficientformerv2_s2': {'timm_name': 'efficientformerv2_s2', 'params': '12.7M', 'venue': 'ICCV 2023', 'group': 1, 'pretrained': True},
     'repvit_m1_5': {'timm_name': 'repvit_m1_5', 'params': '14.0M', 'venue': 'CVPR 2024', 'group': 1, 'pretrained': True},
     'twistnet18': {'timm_name': None, 'params': '11.6M', 'venue': 'Ours', 'group': 1, 'pretrained': True},
     
@@ -93,7 +93,7 @@ def list_models():
     
     print("\n[Group 1: Fair Comparison - 10-16M params - MAIN EXPERIMENTS]")
     group1 = ['resnet18', 'seresnet18', 'convnextv2_nano', 'fastvit_sa12', 
-              'efficientformerv2_s1', 'repvit_m1_5', 'twistnet18']
+              'efficientformerv2_s2', 'repvit_m1_5', 'twistnet18']
     for name in group1:
         info = MODEL_REGISTRY[name]
         note = "(ResNet-18 weights)" if name in MODELS_WITHOUT_PRETRAINED else ""
@@ -890,7 +890,7 @@ def count_params(model: nn.Module, trainable_only: bool = True) -> int:
 def get_fair_comparison_models() -> List[str]:
     """Models for fair comparison (10-16M params) - MAIN EXPERIMENTS."""
     return ['resnet18', 'seresnet18', 'convnextv2_nano', 'fastvit_sa12', 
-            'efficientformerv2_s1', 'repvit_m1_5', 'twistnet18']
+            'efficientformerv2_s2', 'repvit_m1_5', 'twistnet18']
 
 
 def get_efficiency_comparison_models() -> List[str]:
