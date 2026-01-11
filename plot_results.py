@@ -69,7 +69,7 @@ COLORS = {
     'seresnet18': '#55A868', 
     'convnextv2_nano': '#C44E52',
     'fastvit_sa12': '#8172B3',
-    'efficientformerv2_s1': '#CCB974',
+    'efficientformerv2_s2': '#CCB974',
     'repvit_m1_5': '#64B5CD',
     'twistnet18': '#DD8452',  # Our method - highlighted
     'convnext_tiny': '#937860',
@@ -83,7 +83,7 @@ MODEL_NAMES = {
     'seresnet18': 'SE-ResNet-18',
     'convnextv2_nano': 'ConvNeXtV2-N',
     'fastvit_sa12': 'FastViT-SA12',
-    'efficientformerv2_s1': 'EfficientFormerV2-S1',
+    'efficientformerv2_s2': 'EfficientFormerV2-S2',
     'repvit_m1_5': 'RepViT-M1.5',
     'twistnet18': 'TwistNet-18 (Ours)',
     'convnext_tiny': 'ConvNeXt-T',

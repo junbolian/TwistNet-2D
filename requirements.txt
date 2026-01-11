@@ -19,4 +19,4 @@ tqdm>=4.60.0
 matplotlib>=3.5.0
 
 # Optional: for faster data loading
-# opencv-python>=4.5.0
+opencv-python>=4.5.0

@@ -65,15 +65,13 @@ def test_models():
         except Exception as e:
             print(f"  {name:<25} FAILED: {e}")
     
-    # Test pretrained loading
-    print("\n[Pretrained Weight Loading]")
+    # Test TwistNet gate values
+    print("\n[TwistNet Gate Values]")
     try:
-        print("  Loading TwistNet-18 with ImageNet pretrained backbone...")
-        model = build_model('twistnet18', num_classes=47, pretrained=True).to(device)
+        model = build_model('twistnet18', num_classes=47, pretrained=False).to(device)
         model.eval()
         with torch.no_grad():
             y = model(x)
-        print(f"  TwistNet-18 pretrained: OK")
         
         # Check gate values
         gates = model.get_gate_values()
@@ -83,18 +81,7 @@ def test_models():
                 short_name = name.split('.')[-2] if '.' in name else name
                 print(f"    {short_name}: {val:.4f}")
     except Exception as e:
-        print(f"  Pretrained loading FAILED: {e}")
-    
-    # Test ResNet-18 pretrained
-    try:
-        print("\n  Loading ResNet-18 with ImageNet pretrained weights...")
-        model = build_model('resnet18', num_classes=47, pretrained=True).to(device)
-        model.eval()
-        with torch.no_grad():
-            y = model(x)
-        print(f"  ResNet-18 pretrained: OK")
-    except Exception as e:
-        print(f"  ResNet-18 pretrained FAILED: {e}")
+        print(f"  Gate check FAILED: {e}")
     
     print("\n" + "=" * 70)
     print("All tests completed!")

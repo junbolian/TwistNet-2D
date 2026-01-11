@@ -1,148 +1,70 @@
 # ============================================================
-# Step 1: 准备 ImageNet 数据集
-# ============================================================
-# 目录结构：
-# /path/to/imagenet/
-# ├── train/  (~1.2M 图片)
-# └── val/    (~50K 图片)
-
-# ============================================================
-# Step 2: 开始预训练
+# TwistNet-2D 实验运行脚本
+# 所有模型从头训练（无 ImageNet 预训练）
 # ============================================================
 
-# 单 GPU（约7天）
-python pretrain_imagenet.py \
-    --data_dir /path/to/imagenet \
-    --batch_size 256 \
-    --epochs 600 \
-    --checkpoint_dir checkpoints
-
-# 多 GPU（推荐，约2天）
-torchrun --nproc_per_node=4 pretrain_imagenet.py \
-    --data_dir /path/to/imagenet \
-    --batch_size 256 \
-    --epochs 600 \
-    --checkpoint_dir checkpoints
-
 # ============================================================
-# Step 3: 如果中断，续训
-# ============================================================
-python pretrain_imagenet.py \
-    --data_dir /path/to/imagenet \
-    --resume checkpoints/latest.pt
-```
-
-**预训练完成后生成**：
-```
-checkpoints/twistnet18_imagenet.pt  ← 这个文件用于下游任务
-
-
-
-
-# ============================================================
-# 主实验（约 90 小时）
+# 主实验（约 180 小时，200 epochs）
 # ============================================================
 
-# DTD
+# DTD (10 folds × 3 seeds × 7 models = 210 runs)
 python run_all.py --data_dir data/dtd --dataset dtd \
     --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
-    --folds 1-10 --seeds 42,43,44 --epochs 100 --run_dir runs/main
+    --folds 1-10 --seeds 42,43,44 --epochs 200 --run_dir runs/main
 
-# FMD
+# FMD (5 folds × 3 seeds × 7 models = 105 runs)
 python run_all.py --data_dir data/fmd --dataset fmd \
     --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
-    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/main
+    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/main
 
-# KTH-TIPS2
+# KTH-TIPS2 (5 folds × 3 seeds × 7 models = 105 runs)
 python run_all.py --data_dir data/kth_tips2 --dataset kth_tips2 \
     --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
-    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/main
+    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/main
 
-# CUB-200
+# CUB-200 (5 folds × 3 seeds × 7 models = 105 runs)
 python run_all.py --data_dir data/cub200 --dataset cub200 \
     --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
-    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/main
+    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/main
 
-# Flowers-102
+# Flowers-102 (5 folds × 3 seeds × 7 models = 105 runs)
 python run_all.py --data_dir data/flowers102 --dataset flowers102 \
     --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
-    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/main
+    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/main
 
 # ============================================================
-# 消融实验（约 6 小时）
+# 消融实验（约 12 小时）（哪个数据集表现好选哪个，到时候一个数据集表现不好那就不要跑完整，赶紧换下一个数据集）
 # ============================================================
 python run_all.py --data_dir data/dtd --dataset dtd \
     --models twistnet18,twistnet18_no_spiral,twistnet18_no_ais,twistnet18_first_order \
-    --folds 1-3 --seeds 42,43,44 --epochs 100 --run_dir runs/ablation
+    --folds 1-3 --seeds 42,43,44 --epochs 200 --run_dir runs/ablation
 
 # ============================================================
-# 效率对比（约 75 小时）
+# 效率对比（约 150 小时）
 # ============================================================
 python run_all.py --data_dir data/dtd --dataset dtd \
     --models convnext_tiny,convnextv2_tiny,swin_tiny,twistnet18 \
-    --folds 1-10 --seeds 42,43,44 --epochs 100 --run_dir runs/efficiency
+    --folds 1-10 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
 
 python run_all.py --data_dir data/fmd --dataset fmd \
     --models convnext_tiny,convnextv2_tiny,swin_tiny,twistnet18 \
-    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/efficiency
+    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
 
 python run_all.py --data_dir data/kth_tips2 --dataset kth_tips2 \
     --models convnext_tiny,convnextv2_tiny,swin_tiny,twistnet18 \
-    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/efficiency
+    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
 
 python run_all.py --data_dir data/cub200 --dataset cub200 \
     --models convnext_tiny,convnextv2_tiny,swin_tiny,twistnet18 \
-    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/efficiency
+    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
 
 python run_all.py --data_dir data/flowers102 --dataset flowers102 \
     --models convnext_tiny,convnextv2_tiny,swin_tiny,twistnet18 \
-    --folds 1-5 --seeds 42,43,44 --epochs 100 --run_dir runs/efficiency
+    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
 
 # ============================================================
 # 汇总结果
 # ============================================================
-
-# ============================================================
-# Step 1: 跑完实验后，生成所有图表
-# ============================================================
-
-# 生成主实验所有图（柱状图、雷达图、散点图）
-python plot_results.py --run_dir runs/main --save_dir figures --plot bar,radar,scatter
-
-# 生成消融实验图
-python plot_results.py --run_dir runs/ablation --save_dir figures --plot ablation
-
-# 生成效率对比图（不需要实验结果）
-python plot_results.py --save_dir figures --plot efficiency
-
-# ============================================================
-# Step 2: 生成 TwistNet 特有的可视化
-# ============================================================
-
-# Gate 值演化（展示学习过程）
-python plot_results.py --log_file runs/main/dtd_fold1_twistnet18_seed42/log.jsonl --save_dir figures --plot gate
-
-# 交互矩阵热图（需要样本图像）
-python plot_results.py --checkpoint runs/main/dtd_fold1_twistnet18_seed42/best.pt --image data/dtd/images/banded/banded_0001.jpg --save_dir figures --plot interaction
-
-# t-SNE 特征可视化
-python plot_results.py --checkpoint runs/main/dtd_fold1_twistnet18_seed42/best.pt --data_dir data/dtd --save_dir figures --plot tsne
-
-# ============================================================
-# Step 3: 生成 LaTeX 表格
-# ============================================================
-
-# 主实验表格
-python summarize_runs.py --run_dir runs/main --latex > tables/main_results.tex
-
-# 消融实验表格
-python summarize_runs.py --run_dir runs/ablation --latex > tables/ablation.tex
-
-# ============================================================
-# 一键生成所有图表（跑完实验后）
-# ============================================================
-
-# 实验跑完后，只需要这几个：
 
 # 1. 表格（必须）
 python summarize_runs.py --run_dir runs/main --latex
@@ -158,4 +80,50 @@ python plot_results.py --run_dir runs/ablation --plot ablation
 python plot_results.py --log_file runs/main/dtd_fold1_twistnet18_seed42/log.jsonl --plot gate
 
 # 5. 交互矩阵（放Method里解释原理）
-python plot_results.py --checkpoint best.pt --image sample.jpg --plot interaction
+python plot_results.py --checkpoint runs/main/dtd_fold1_twistnet18_seed42/best.pt \
+    --image data/dtd/images/banded/banded_0001.jpg --plot interaction
+
+# ============================================================
+# 一键生成所有图表（跑完实验后）
+# ============================================================
+
+# 生成主实验所有图（柱状图、雷达图、散点图）
+python plot_results.py --run_dir runs/main --save_dir figures --plot bar,radar,scatter
+
+# 生成消融实验图
+python plot_results.py --run_dir runs/ablation --save_dir figures --plot ablation
+
+# 生成效率对比图
+python plot_results.py --save_dir figures --plot efficiency
+
+# ============================================================
+# 训练配置说明
+# ============================================================
+# 
+# 所有模型使用相同配置：
+# - 预训练：无（从头训练）
+# - Epochs：200
+# - Warmup：10 epochs
+# - 学习率：0.01（cosine annealing）
+# - Batch size：32
+# - 优化器：SGD (momentum=0.9, nesterov=True)
+# - 数据增强：RandAugment + Mixup + CutMix
+#
+# 为什么从头训练？
+# 1. 公平对比：隔离架构本身的能力
+# 2. 领域差异：ImageNet 特征针对物体语义优化，
+#    而纹理识别需要局部共现模式，TwistNet 的 STCI
+#    专门捕获周期性纹理的跨位置相关性
+# ============================================================
+
+# ============================================================
+# 时间估算（单 RTX 3090）
+# ============================================================
+# 
+# 主实验：~180 小时（7.5 天）
+# 消融实验：~12 小时
+# 效率对比：~150 小时（6 天）
+# 总计：~340 小时（14 天）
+#
+# 建议：使用多 GPU 并行运行不同 fold/seed
+# ============================================================

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Training script for TwistNet-2D benchmarks.
-Supports: pretrained weights, checkpoint resume, mixed precision.
+All models trained from scratch (no ImageNet pretraining).
+Supports: checkpoint resume, mixed precision.
 """
 
 import argparse
@@ -157,12 +158,8 @@ def main():
     
     # Model
     parser.add_argument("--model", type=str, default="twistnet18", help="Model name")
-    parser.add_argument("--pretrained", action="store_true", default=True,
-                        help="Use ImageNet pretrained weights (CRITICAL for small datasets!)")
-    parser.add_argument("--no_pretrained", action="store_true",
-                        help="Train from scratch (not recommended)")
-    parser.add_argument("--twistnet_pretrained", type=str, default=None,
-                        help="Path to TwistNet-specific pretrained weights (twistnet18_imagenet.pt)")
+    parser.add_argument("--pretrained", action="store_true", default=False,
+                        help="Use ImageNet pretrained weights (optional)")
     parser.add_argument("--twist_stages", type=str, default="3,4", help="Stages to use TwistBlock")
     parser.add_argument("--num_heads", type=int, default=4, help="Number of STCI heads")
     parser.add_argument("--use_ais", action="store_true", default=True)
@@ -172,11 +169,11 @@ def main():
     parser.add_argument("--gate_init", type=float, default=-2.0, help="Gate initialization")
     
     # Training
-    parser.add_argument("--epochs", type=int, default=100, help="Number of epochs")
+    parser.add_argument("--epochs", type=int, default=200, help="Number of epochs")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size")
     parser.add_argument("--lr", type=float, default=0.01, help="Learning rate")
     parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay")
-    parser.add_argument("--warmup_epochs", type=int, default=5, help="Warmup epochs")
+    parser.add_argument("--warmup_epochs", type=int, default=10, help="Warmup epochs")
     parser.add_argument("--min_lr", type=float, default=1e-6, help="Minimum learning rate")
     parser.add_argument("--grad_clip", type=float, default=1.0, help="Gradient clipping")
     
@@ -205,7 +202,6 @@ def main():
     if args.no_ais: args.use_ais = False
     if args.no_spiral: args.use_spiral = False
     if args.no_mixup: args.use_mixup = False
-    if args.no_pretrained: args.pretrained = False
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     seed_everything(args.seed)
@@ -233,7 +229,7 @@ def main():
     print(f"{'='*60}")
     print(f"Run: {run_name}")
     print(f"Device: {device}")
-    print(f"Pretrained: {args.pretrained}")
+    print(f"Training: From scratch (no pretraining)")
     print(f"{'='*60}")
     
     # Data
@@ -248,20 +244,10 @@ def main():
     print(f"Dataset: {args.dataset}, Classes: {num_classes}")
     print(f"Train: {len(train_loader.dataset)}, Val: {len(val_loader.dataset)}, Test: {len(test_loader.dataset)}")
     
-    # Model
-    # Determine pretrained setting for TwistNet
-    if 'twistnet' in args.model.lower() and args.twistnet_pretrained:
-        # Use TwistNet-specific pretrained weights
-        pretrained_arg = args.twistnet_pretrained
-        use_layer_wise_lr = False  # All layers are properly pretrained
-    else:
-        pretrained_arg = args.pretrained
-        # Only use layer-wise LR if using ResNet partial weights
-        use_layer_wise_lr = 'twistnet' in args.model.lower() and args.pretrained and not args.twistnet_pretrained
-    
+    # Model - always train from scratch
     model = build_model(
         args.model, num_classes,
-        pretrained=pretrained_arg,
+        pretrained=args.pretrained,
         twist_stages=twist_stages, num_heads=args.num_heads,
         use_ais=args.use_ais, use_spiral=args.use_spiral, gate_init=args.gate_init
     ).to(device)
@@ -269,35 +255,8 @@ def main():
     print(f"Model: {args.model}, Params: {count_params(model)/1e6:.2f}M")
     
     # Optimizer & Scheduler
-    # Use layer-wise learning rate for TwistNet ONLY when using partial ResNet weights
-    # When using TwistNet-specific pretrained, all layers are properly initialized
-    if use_layer_wise_lr:
-        pretrained_params = []  # stem + layer1 + layer2
-        random_params = []       # layer3 + layer4 + fc
-        
-        for name, param in model.named_parameters():
-            # layer3 and layer4 are randomly initialized (have STCI)
-            if name.startswith('layer3') or name.startswith('layer4') or name.startswith('fc'):
-                random_params.append(param)
-            else:
-                pretrained_params.append(param)
-        
-        # Random-init layers use 5x higher learning rate
-        param_groups = [
-            {'params': pretrained_params, 'lr': args.lr},
-            {'params': random_params, 'lr': args.lr * 5},  # 5x for layer3/4/fc
-        ]
-        
-        print(f"[Layer-wise LR] Pretrained (stem+L1+L2): {args.lr}")
-        print(f"[Layer-wise LR] Random (L3+L4+FC): {args.lr * 5}")
-        print(f"[Layer-wise LR] Pretrained params: {sum(p.numel() for p in pretrained_params)/1e6:.2f}M")
-        print(f"[Layer-wise LR] Random params: {sum(p.numel() for p in random_params)/1e6:.2f}M")
-        
-        optimizer = torch.optim.SGD(param_groups, momentum=0.9,
-                                     weight_decay=args.weight_decay, nesterov=True)
-    else:
-        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9,
-                                     weight_decay=args.weight_decay, nesterov=True)
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9,
+                                 weight_decay=args.weight_decay, nesterov=True)
     
     if args.warmup_epochs > 0:
         warmup = LinearLR(optimizer, start_factor=0.1, total_iters=args.warmup_epochs)

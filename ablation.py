@@ -2,12 +2,13 @@
 """
 Ablation study experiments for TwistNet-2D.
 
+All models trained from scratch (no ImageNet pretraining).
+
 Ablations:
-1. Number of heads: 1, 2, 4, 8
-2. Twist stages: (3,), (4,), (3,4), (2,3,4), (1,2,3,4)
-3. Components: with/without AIS, with/without Spiral
+1. Components: with/without AIS, with/without Spiral
+2. Number of heads: 1, 2, 4
+3. Twist stages: (3,), (4,), (3,4)
 4. Gate initialization: -3, -2, -1, 0, 1
-5. Spiral directions: single vs all
 """
 
 import subprocess
@@ -26,7 +27,7 @@ def is_completed(run_dir: str, config: dict, dataset: str, fold: int, seed: int)
 
 
 def run_exp(config: dict, data_dir: str, dataset: str = "dtd", fold: int = 1,
-            seed: int = 42, epochs: int = 100, run_dir: str = "runs_ablation", 
+            seed: int = 42, epochs: int = 200, run_dir: str = "runs_ablation", 
             dry_run: bool = False, force: bool = False):
     
     name = "_".join(f"{k}={v}" for k, v in sorted(config.items()))
@@ -41,7 +42,7 @@ def run_exp(config: dict, data_dir: str, dataset: str = "dtd", fold: int = 1,
         "--data_dir", data_dir, "--dataset", dataset,
         "--fold", str(fold), "--seed", str(seed),
         "--model", "twistnet18", "--epochs", str(epochs),
-        "--run_dir", run_dir, "--amp", "--pretrained",
+        "--run_dir", run_dir, "--amp",
     ]
     
     if "num_heads" in config:
@@ -79,9 +80,9 @@ def run_exp(config: dict, data_dir: str, dataset: str = "dtd", fold: int = 1,
 def ablation_num_heads(data_dir: str, **kwargs):
     """Ablation: Number of spiral heads."""
     print("\n" + "=" * 60)
-    print("Ablation: Number of Heads (1, 2, 4, 8)")
+    print("Ablation: Number of Heads (1, 2, 4)")
     print("=" * 60)
-    for num_heads in [1, 2, 4, 8]:
+    for num_heads in [1, 2, 4]:
         run_exp({"num_heads": num_heads}, data_dir, **kwargs)
 
 
@@ -90,7 +91,7 @@ def ablation_twist_stages(data_dir: str, **kwargs):
     print("\n" + "=" * 60)
     print("Ablation: Twist Stages")
     print("=" * 60)
-    for stages in ["3", "4", "3,4", "2,3,4", "1,2,3,4"]:
+    for stages in ["3", "4", "3,4"]:
         run_exp({"twist_stages": stages}, data_dir, **kwargs)
 
 
@@ -119,7 +120,7 @@ def ablation_gate_init(data_dir: str, **kwargs):
 
 
 def run_all_ablations(data_dir: str, dataset: str = "dtd", fold: int = 1,
-                      seed: int = 42, epochs: int = 100, dry_run: bool = False,
+                      seed: int = 42, epochs: int = 200, dry_run: bool = False,
                       force: bool = False):
     """Run all ablation studies."""
     kwargs = {"dataset": dataset, "fold": fold, "seed": seed, "epochs": epochs, 
@@ -128,11 +129,12 @@ def run_all_ablations(data_dir: str, dataset: str = "dtd", fold: int = 1,
     print("=" * 60)
     print("TwistNet-2D Ablation Studies")
     print(f"Dataset: {dataset}, Fold: {fold}, Seed: {seed}")
+    print("Training: From scratch (no pretraining)")
     print("=" * 60)
     
+    ablation_components(data_dir, **kwargs)
     ablation_num_heads(data_dir, **kwargs)
     ablation_twist_stages(data_dir, **kwargs)
-    ablation_components(data_dir, **kwargs)
     ablation_gate_init(data_dir, **kwargs)
     
     print("\n" + "=" * 60)
@@ -145,7 +147,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, default="dtd")
     parser.add_argument("--fold", type=int, default=1)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--epochs", type=int, default=200)
     parser.add_argument("--dry_run", action="store_true")
     parser.add_argument("--force", action="store_true", help="Force re-run completed experiments")
     parser.add_argument("--ablation", type=str, default="all",

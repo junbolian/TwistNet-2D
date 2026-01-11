@@ -6,10 +6,11 @@ Features:
 - Automatically skips completed experiments (checks results.json)
 - Resume from checkpoint for interrupted experiments
 - Parallel-safe: multiple instances can run different experiments
+- All models trained from scratch (no ImageNet pretraining)
 
 Usage:
     python run_all.py --data_dir data/dtd --dataset dtd --folds 1-10 --seeds 42,43,44 \
-        --models resnet18,twistnet18 --epochs 100
+        --models resnet18,twistnet18 --epochs 200
 """
 
 import argparse
@@ -66,13 +67,11 @@ def main():
     ap.add_argument("--folds", type=str, default="1", help="Fold range (e.g., '1-10' or '1,2,3')")
     ap.add_argument("--seeds", type=str, default="42", help="Seed list (e.g., '42,43,44')")
     ap.add_argument("--models", type=str, default="resnet18,twistnet18", help="Model list")
-    ap.add_argument("--epochs", type=int, default=100, help="Number of epochs")
+    ap.add_argument("--epochs", type=int, default=200, help="Number of epochs")
     ap.add_argument("--batch_size", type=int, default=32, help="Batch size")
     ap.add_argument("--lr", type=float, default=0.01, help="Learning rate")
     ap.add_argument("--img_size", type=int, default=224, help="Image size")
     ap.add_argument("--run_dir", type=str, default="runs", help="Output directory")
-    ap.add_argument("--twistnet_pretrained", type=str, default=None,
-                    help="Path to TwistNet-specific pretrained weights")
     ap.add_argument("--dry_run", action="store_true", help="Print commands without running")
     ap.add_argument("--force", action="store_true", help="Force re-run even if completed")
     args = ap.parse_args()
@@ -99,6 +98,7 @@ def main():
     print(f"Folds: {folds}")
     print(f"Seeds: {seeds}")
     print(f"Epochs: {args.epochs}")
+    print(f"Training: From scratch (no pretraining)")
     print(f"Total experiments: {total}")
     print("=" * 60)
     
@@ -144,12 +144,7 @@ def main():
             "--img_size", str(args.img_size),
             "--run_dir", args.run_dir,
             "--amp",
-            "--pretrained",  # CRITICAL: use pretrained weights
         ]
-        
-        # Add TwistNet-specific pretrained weights if provided
-        if args.twistnet_pretrained and 'twistnet' in model.lower():
-            cmd.extend(["--twistnet_pretrained", args.twistnet_pretrained])
         
         if resume:
             cmd.append("--resume")
