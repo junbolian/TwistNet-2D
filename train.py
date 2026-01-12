@@ -2,7 +2,13 @@
 """
 Training script for TwistNet-2D benchmarks.
 All models trained from scratch (no ImageNet pretraining).
-Supports: checkpoint resume, mixed precision.
+Supports: checkpoint resume, mixed precision, dataset-specific augmentation.
+
+Key parameters (matching the original high-accuracy version):
+- lr: 0.05 (NOT 0.01)
+- batch_size: 64 (NOT 32)
+- min_lr: 1e-5 (NOT 1e-6)
+- crop_scale: (0.25, 1.0) for texture datasets (improvement over 0.08)
 """
 
 import argparse
@@ -23,7 +29,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 
 from models import build_model, count_params
 from datasets import get_dataloaders
-from transforms import build_train_transform, build_eval_transform
+from transforms import build_train_transform, build_eval_transform, get_dataset_transform_config
 
 
 def seed_everything(seed: int):
@@ -39,6 +45,7 @@ def accuracy_top1(logits, targets):
 
 
 def mixup_cutmix(x, y, mixup_alpha=0.8, cutmix_alpha=1.0, prob=1.0):
+    """Mixup and CutMix augmentation."""
     if random.random() > prob:
         return x, y, y, 1.0
     
@@ -147,7 +154,7 @@ def load_checkpoint(path, model, optimizer, scheduler, scaler, device):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="TwistNet-2D Training")
+    parser = argparse.ArgumentParser(description="TwistNet-2D Training (From Scratch)")
     
     # Data
     parser.add_argument("--data_dir", type=str, required=True, help="Path to dataset")
@@ -159,7 +166,7 @@ def main():
     # Model
     parser.add_argument("--model", type=str, default="twistnet18", help="Model name")
     parser.add_argument("--pretrained", action="store_true", default=False,
-                        help="Use ImageNet pretrained weights (optional)")
+                        help="Use ImageNet pretrained weights (default: False)")
     parser.add_argument("--twist_stages", type=str, default="3,4", help="Stages to use TwistBlock")
     parser.add_argument("--num_heads", type=int, default=4, help="Number of STCI heads")
     parser.add_argument("--use_ais", action="store_true", default=True)
@@ -168,23 +175,28 @@ def main():
     parser.add_argument("--no_spiral", action="store_true")
     parser.add_argument("--gate_init", type=float, default=-2.0, help="Gate initialization")
     
-    # Training
+    # Training - KEY PARAMETERS (matching original high-accuracy version)
     parser.add_argument("--epochs", type=int, default=200, help="Number of epochs")
-    parser.add_argument("--batch_size", type=int, default=32, help="Batch size")
-    parser.add_argument("--lr", type=float, default=0.01, help="Learning rate")
+    parser.add_argument("--batch_size", type=int, default=64, help="Batch size (was 32, now 64)")
+    parser.add_argument("--lr", type=float, default=0.05, help="Learning rate (was 0.01, now 0.05)")
     parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay")
     parser.add_argument("--warmup_epochs", type=int, default=10, help="Warmup epochs")
-    parser.add_argument("--min_lr", type=float, default=1e-6, help="Minimum learning rate")
+    parser.add_argument("--min_lr", type=float, default=1e-5, help="Minimum LR (was 1e-6, now 1e-5)")
     parser.add_argument("--grad_clip", type=float, default=1.0, help="Gradient clipping")
     
     # Augmentation
     parser.add_argument("--use_mixup", action="store_true", default=True)
     parser.add_argument("--no_mixup", action="store_true")
-    parser.add_argument("--mixup_alpha", type=float, default=0.8)
-    parser.add_argument("--cutmix_alpha", type=float, default=1.0)
+    parser.add_argument("--mixup_alpha", type=float, default=0.8, help="Mixup alpha")
+    parser.add_argument("--cutmix_alpha", type=float, default=1.0, help="CutMix alpha")
     parser.add_argument("--label_smoothing", type=float, default=0.1)
     parser.add_argument("--ra_n", type=int, default=2, help="RandAugment num ops")
     parser.add_argument("--ra_m", type=int, default=9, help="RandAugment magnitude")
+    parser.add_argument("--crop_scale_min", type=float, default=0.2, help="Min crop scale (unified 0.2)")
+    parser.add_argument("--crop_scale_max", type=float, default=1.0, help="Max crop scale")
+    parser.add_argument("--auto_augment", action="store_true", default=True,
+                        help="Use dataset-specific augmentation settings")
+    parser.add_argument("--no_auto_augment", action="store_true")
     
     # System
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
@@ -194,7 +206,7 @@ def main():
     
     # Resume
     parser.add_argument("--resume", action="store_true", help="Resume from checkpoint")
-    parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path (auto if not specified)")
+    parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path")
     
     args = parser.parse_args()
     
@@ -202,6 +214,15 @@ def main():
     if args.no_ais: args.use_ais = False
     if args.no_spiral: args.use_spiral = False
     if args.no_mixup: args.use_mixup = False
+    if args.no_auto_augment: args.auto_augment = False
+    
+    # Apply dataset-specific augmentation settings
+    if args.auto_augment:
+        config = get_dataset_transform_config(args.dataset)
+        args.crop_scale_min = config["crop_scale"][0]
+        args.crop_scale_max = config["crop_scale"][1]
+        args.ra_n = config["ra_n"]
+        args.ra_m = config["ra_m"]
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     seed_everything(args.seed)
@@ -231,9 +252,22 @@ def main():
     print(f"Device: {device}")
     print(f"Training: From scratch (no pretraining)")
     print(f"{'='*60}")
+    print(f"Key settings:")
+    print(f"  LR: {args.lr}, Batch: {args.batch_size}, Epochs: {args.epochs}")
+    print(f"  Crop scale: ({args.crop_scale_min}, {args.crop_scale_max})")
+    print(f"  Mixup: alpha={args.mixup_alpha}, CutMix: alpha={args.cutmix_alpha}")
+    print(f"  RandAugment: n={args.ra_n}, m={args.ra_m}")
+    print(f"{'='*60}")
     
-    # Data
-    train_transform = build_train_transform(args.img_size, ra_n=args.ra_n, ra_m=args.ra_m)
+    # Data - use updated transform
+    crop_scale = (args.crop_scale_min, args.crop_scale_max)
+    train_transform = build_train_transform(
+        args.img_size, 
+        use_randaugment=True,
+        ra_n=args.ra_n, 
+        ra_m=args.ra_m,
+        crop_scale=crop_scale
+    )
     eval_transform = build_eval_transform(args.img_size)
     
     train_loader, val_loader, test_loader, num_classes = get_dataloaders(
@@ -244,7 +278,7 @@ def main():
     print(f"Dataset: {args.dataset}, Classes: {num_classes}")
     print(f"Train: {len(train_loader.dataset)}, Val: {len(val_loader.dataset)}, Test: {len(test_loader.dataset)}")
     
-    # Model - always train from scratch
+    # Model
     model = build_model(
         args.model, num_classes,
         pretrained=args.pretrained,
@@ -277,7 +311,7 @@ def main():
         start_epoch, best_val_acc = load_checkpoint(
             checkpoint_path, model, optimizer, scheduler, scaler, device
         )
-        start_epoch += 1  # Start from next epoch
+        start_epoch += 1
         print(f"[RESUME] Continuing from epoch {start_epoch}, best_val_acc: {best_val_acc:.4f}")
     
     # Training
@@ -332,11 +366,14 @@ def main():
         "params_M": count_params(model)/1e6,
         "pretrained": args.pretrained,
         "epochs": args.epochs,
+        "lr": args.lr,
+        "batch_size": args.batch_size,
+        "crop_scale": (args.crop_scale_min, args.crop_scale_max),
     }
     with open(run_path / "results.json", "w") as f:
         json.dump(results, f, indent=2)
     
-    # Clean up checkpoint after successful completion
+    # Clean up checkpoint
     checkpoint_file = run_path / "checkpoint.pt"
     if checkpoint_file.exists():
         checkpoint_file.unlink()

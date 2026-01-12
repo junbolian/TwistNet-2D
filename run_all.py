@@ -8,6 +8,11 @@ Features:
 - Parallel-safe: multiple instances can run different experiments
 - All models trained from scratch (no ImageNet pretraining)
 
+Key parameters (matching original high-accuracy version):
+- lr: 0.05
+- batch_size: 64
+- crop_scale: (0.25, 1.0) per dataset
+
 Usage:
     python run_all.py --data_dir data/dtd --dataset dtd --folds 1-10 --seeds 42,43,44 \
         --models resnet18,twistnet18 --epochs 200
@@ -61,19 +66,21 @@ def has_checkpoint(run_dir: Path, run_name: str) -> bool:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Batch experiment runner")
+    ap = argparse.ArgumentParser(description="Batch experiment runner (From Scratch)")
     ap.add_argument("--data_dir", type=str, required=True, help="Path to dataset")
     ap.add_argument("--dataset", type=str, default="dtd", help="Dataset name")
     ap.add_argument("--folds", type=str, default="1", help="Fold range (e.g., '1-10' or '1,2,3')")
     ap.add_argument("--seeds", type=str, default="42", help="Seed list (e.g., '42,43,44')")
     ap.add_argument("--models", type=str, default="resnet18,twistnet18", help="Model list")
     ap.add_argument("--epochs", type=int, default=200, help="Number of epochs")
-    ap.add_argument("--batch_size", type=int, default=32, help="Batch size")
-    ap.add_argument("--lr", type=float, default=0.01, help="Learning rate")
+    ap.add_argument("--batch_size", type=int, default=64, help="Batch size (default 64)")
+    ap.add_argument("--lr", type=float, default=0.05, help="Learning rate (default 0.05)")
     ap.add_argument("--img_size", type=int, default=224, help="Image size")
     ap.add_argument("--run_dir", type=str, default="runs", help="Output directory")
     ap.add_argument("--dry_run", action="store_true", help="Print commands without running")
     ap.add_argument("--force", action="store_true", help="Force re-run even if completed")
+    ap.add_argument("--no_auto_augment", action="store_true", help="Disable dataset-specific augmentation")
+    
     args = ap.parse_args()
     
     folds = parse_range(args.folds)
@@ -91,13 +98,14 @@ def main():
     total = len(models) * len(folds) * len(seeds)
     
     print("=" * 60)
-    print("TwistNet-2D Batch Experiment Runner")
+    print("TwistNet-2D Batch Experiment Runner (From Scratch)")
     print("=" * 60)
     print(f"Dataset: {args.dataset}")
     print(f"Models: {models}")
     print(f"Folds: {folds}")
     print(f"Seeds: {seeds}")
     print(f"Epochs: {args.epochs}")
+    print(f"LR: {args.lr}, Batch: {args.batch_size}")
     print(f"Training: From scratch (no pretraining)")
     print(f"Total experiments: {total}")
     print("=" * 60)
@@ -145,6 +153,9 @@ def main():
             "--run_dir", args.run_dir,
             "--amp",
         ]
+        
+        if args.no_auto_augment:
+            cmd.append("--no_auto_augment")
         
         if resume:
             cmd.append("--resume")
