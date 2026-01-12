@@ -74,7 +74,12 @@ python summarize_runs.py --run_dir runs/ablation --latex
 python plot_results.py --run_dir runs/main --plot bar
 
 # 3. 消融图
+# 只显示 DTD（默认）
 python plot_results.py --run_dir runs/ablation --plot ablation
+
+# 显示其他数据集
+python plot_results.py --run_dir runs/ablation --plot ablation --dataset fmd
+python plot_results.py --run_dir runs/ablation --plot ablation --dataset kth_tips2
 
 # 4. Gate演化（TwistNet特色）
 python plot_results.py --log_file runs/main/dtd_fold1_twistnet18_seed42/log.jsonl --plot gate
