@@ -26,6 +26,7 @@ By aggregating four directional heads with adaptive channel weighting and inject
 - **Adaptive Interaction Selection (AIS)**: Learnable attention over interaction directions
 - **Gated Integration**: Near-zero initialization (γ=-2.0) enables stable training
 - **Lightweight Design**: Only **11.59M parameters** (~3.5% overhead vs ResNet-18), **1.85G FLOPs** (~2% overhead)
+- **Training from Scratch**: All models trained without ImageNet pretraining for fair architectural comparison
 
 ## Installation
 
@@ -39,7 +40,7 @@ conda create -n twistnet python=3.9
 conda activate twistnet
 
 # Install dependencies
-pip install torch torchvision timm numpy pillow matplotlib seaborn scikit-learn
+pip install torch torchvision timm numpy pillow matplotlib seaborn scikit-learn tqdm
 
 # (Optional) For FLOPs calculation
 pip install fvcore
@@ -48,7 +49,7 @@ pip install fvcore
 ### Requirements
 
 - Python >= 3.8
-- PyTorch >= 1.12
+- PyTorch >= 2.0
 - timm >= 0.9.0
 - CUDA >= 11.3 (for GPU training)
 
@@ -65,7 +66,7 @@ list_models()
 # Build TwistNet-18 (trained from scratch)
 model = build_model('twistnet18', num_classes=47, pretrained=False)
 
-# Build baseline models
+# Build baseline models (from scratch)
 resnet = build_model('resnet18', num_classes=47, pretrained=False)
 convnext = build_model('convnextv2_nano', num_classes=47, pretrained=False)
 ```
@@ -101,14 +102,18 @@ python train.py \
 
 ### Dataset Preparation
 
+See [DATASET.md](DATASET.md) for detailed dataset preparation instructions.
+
 ```
 data/
-├── dtd/           # Describable Textures Dataset
-├── fmd/           # Flickr Material Database  
-├── kth_tips2/     # KTH-TIPS2
-├── cub200/        # CUB-200-2011
-└── flowers102/    # Oxford Flowers-102
+├── dtd/           # Describable Textures Dataset (47 classes, 10 folds)
+├── fmd/           # Flickr Material Database (10 classes, 5 folds)
+├── kth_tips2/     # KTH-TIPS2 (11 classes, 4 folds LOSO)
+├── cub200/        # CUB-200-2011 (200 classes, 5 folds)
+└── flowers102/    # Oxford Flowers-102 (102 classes, official splits)
 ```
+
+> **Note on KTH-TIPS2**: This dataset uses Leave-One-Sample-Out (LOSO) cross-validation. Each class has 4 physical samples (a, b, c, d) with multiple images captured under different lighting/scale conditions. To prevent data leakage, one physical sample is held out for testing in each fold.
 
 ### Main Experiments
 
@@ -118,22 +123,23 @@ python run_all.py --data_dir data/dtd --dataset dtd \
     --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
     --folds 1-10 --seeds 42,43,44 --epochs 200 --run_dir runs/main
 
-# FMD
+# FMD (5 folds × 3 seeds = 15 runs per model)
 python run_all.py --data_dir data/fmd --dataset fmd \
     --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
     --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/main
 
-# KTH-TIPS2
+# KTH-TIPS2 (4 folds × 3 seeds = 12 runs per model)
+# Uses Leave-One-Sample-Out (LOSO) protocol to prevent data leakage
 python run_all.py --data_dir data/kth_tips2 --dataset kth_tips2 \
     --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
-    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/main
+    --folds 1-4 --seeds 42,43,44 --epochs 200 --run_dir runs/main
 
-# CUB-200
+# CUB-200 (5 folds × 3 seeds = 15 runs per model)
 python run_all.py --data_dir data/cub200 --dataset cub200 \
     --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
     --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/main
 
-# Flowers-102
+# Flowers-102 (5 folds × 3 seeds = 15 runs per model)
 python run_all.py --data_dir data/flowers102 --dataset flowers102 \
     --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
     --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/main
@@ -159,61 +165,34 @@ python plot_results.py --run_dir runs/main --save_dir figures --plot bar
 python plot_results.py --run_dir runs/ablation --save_dir figures --plot ablation
 ```
 
-## Results
-
-### Parameter and FLOPs Overhead
-
-| Model | Params | FLOPs | Overhead |
-|-------|--------|-------|----------|
-| ResNet-18 | 11.20M | 1.82G | — |
-| **TwistNet-18** | **11.59M** | **1.85G** | **+3.5% params, +2% FLOPs** |
-
-### Model Zoo
-
-#### Group 1: Fair Comparison (10–16M params)
-
-| Model | Params | FLOPs | Venue |
-|-------|--------|-------|-------|
-| ResNet-18 | 11.20M | 1.82G | CVPR 2016 |
-| SE-ResNet-18 | 11.29M | 1.82G | CVPR 2018 |
-| ConvNeXtV2-Nano | 15.01M | 2.45G | CVPR 2023 |
-| FastViT-SA12 | 10.60M | 1.50G | ICCV 2023 |
-| EfficientFormerV2-S2 | 12.70M | 1.30G | ICCV 2023 |
-| RepViT-M1.5 | 13.67M | 2.31G | CVPR 2024 |
-| **TwistNet-18 (Ours)** | **11.59M** | **1.85G** | — |
-
-#### Group 2: Larger Baselines (~28M params)
-
-| Model | Params | FLOPs | Venue |
-|-------|--------|-------|-------|
-| ConvNeXt-Tiny | 27.86M | 4.47G | CVPR 2022 |
-| Swin-Tiny | 27.56M | 4.51G | ICCV 2021 |
-
-### Ablation Variants
-
-| Variant | Params | Description |
-|---------|--------|-------------|
-| TwistNet-18 (Full) | 11.59M | Complete model with all components |
-| w/o Spiral Twist | 11.59M | Same-position products only (no directional displacement) |
-| w/o AIS | 11.53M | No Adaptive Interaction Selection |
-| First-order only | 11.20M | No STCI modules (equivalent to ResNet-18 backbone) |
-
 ## Training Configuration
 
 All models use identical training settings for fair comparison:
 
 | Setting | Value |
 |---------|-------|
-| Pretraining | **None (trained from scratch)** |
+| **Pretraining** | **None (trained from scratch)** |
 | Optimizer | SGD (momentum=0.9, nesterov=True) |
-| Learning Rate | 0.01 |
-| LR Schedule | Cosine Annealing (min_lr=1e-6) |
+| Learning Rate | 0.05 |
+| LR Schedule | Cosine Annealing (min_lr=1e-5) |
 | Warmup | 10 epochs (linear) |
 | **Epochs** | **200** |
-| Batch Size | 32 |
+| Batch Size | 64 |
 | Weight Decay | 1e-4 |
 | Label Smoothing | 0.1 |
-| Augmentation | RandAugment (n=2, m=9) + Mixup (α=0.8) + CutMix (α=1.0) |
+| Gradient Clipping | 1.0 |
+| Mixed Precision | Enabled (AMP) |
+
+### Data Augmentation
+
+| Augmentation | Value |
+|--------------|-------|
+| RandomResizedCrop | scale=(0.2, 1.0), BICUBIC |
+| RandomHorizontalFlip | p=0.5 |
+| RandAugment | n=2, m=9 |
+| Mixup | α=0.8 |
+| CutMix | α=1.0 |
+| Normalization | ImageNet mean/std |
 
 ## Why Train from Scratch?
 
@@ -225,12 +204,78 @@ We train all models from scratch without ImageNet pretraining for two reasons:
 
 Empirically, we observe that TwistNet trained from scratch significantly outperforms all baselines, validating that explicit second-order interaction modeling provides strong inductive bias for texture recognition.
 
+## Results
+
+### Model Complexity
+
+| Model | Params | FLOPs | Overhead |
+|-------|--------|-------|----------|
+| ResNet-18 | 11.20M | 1.82G | — |
+| **TwistNet-18** | **11.59M** | **1.85G** | **+3.5% params, +2% FLOPs** |
+
+### Model Zoo
+
+#### Group 1: Fair Comparison (10-16M params)
+
+| Model | Params | FLOPs | Venue |
+|-------|--------|-------|-------|
+| ResNet-18 | 11.20M | 1.82G | CVPR 2016 |
+| SE-ResNet-18 | 11.29M | 1.82G | CVPR 2018 |
+| ConvNeXtV2-Nano | 15.62M | 2.45G | CVPR 2023 |
+| FastViT-SA12 | 10.93M | 1.88G | ICCV 2023 |
+| EfficientFormerV2-S2 | 12.71M | 1.27G | ICCV 2023 |
+| RepViT-M1.5 | 14.02M | 2.31G | CVPR 2024 |
+| **TwistNet-18 (Ours)** | **11.59M** | **1.85G** | — |
+
+#### Group 2: Larger Baselines (~28M params)
+
+| Model | Params | FLOPs | Venue |
+|-------|--------|-------|-------|
+| ConvNeXt-Tiny | 28.59M | 4.47G | CVPR 2022 |
+| ConvNeXtV2-Tiny | 28.64M | 4.47G | CVPR 2023 |
+| Swin-Tiny | 28.29M | 4.51G | ICCV 2021 |
+| MaxViT-Tiny | 30.92M | 5.45G | ECCV 2022 |
+
+### Main Results (Test Accuracy %)
+
+| Model | DTD | FMD | KTH-TIPS2 | CUB-200 | Flowers-102 |
+|-------|-----|-----|-----------|---------|-------------|
+| ResNet-18 | TBD | TBD | TBD | TBD | TBD |
+| SE-ResNet-18 | TBD | TBD | TBD | TBD | TBD |
+| ConvNeXtV2-Nano | TBD | TBD | TBD | TBD | TBD |
+| FastViT-SA12 | TBD | TBD | TBD | TBD | TBD |
+| EfficientFormerV2-S2 | TBD | TBD | TBD | TBD | TBD |
+| RepViT-M1.5 | TBD | TBD | TBD | TBD | TBD |
+| **TwistNet-18 (Ours)** | **TBD** | **TBD** | **TBD** | **TBD** | **TBD** |
+
+### Ablation Study (DTD Test Accuracy %)
+
+| Variant | Params | Description | Accuracy |
+|---------|--------|-------------|----------|
+| TwistNet-18 (Full) | 11.59M | Complete model | TBD |
+| w/o Spiral Twist | 11.59M | Same-position products only | TBD |
+| w/o AIS | 11.53M | No Adaptive Interaction Selection | TBD |
+| First-order only | 11.20M | No STCI modules | TBD |
+
+## TwistNet Architecture
+
+### STCI Module Parameters
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| Channel Reduction (c_red) | 8 | Reduces channels for interaction computation |
+| Number of Heads | 4 | One per direction (0°, 45°, 90°, 135°) |
+| Pairwise Interactions | 36 per head | c_red × (c_red + 1) / 2 |
+| Gate Initialization | -2.0 | Near-zero sigmoid output for stable training |
+| AIS Reduction | 4 | SE-style attention reduction ratio |
+| Twist Stages | (3, 4) | Applied to layer3 and layer4 |
+
 ## File Structure
 
 ```
 TwistNet-2D/
 ├── models.py              # Model definitions (TwistNet + baselines)
-├── train.py               # Single training script
+├── train.py               # Training script
 ├── run_all.py             # Batch experiment runner
 ├── compute_flops.py       # FLOPs and parameters calculation
 ├── datasets.py            # Dataset loaders
@@ -238,7 +283,10 @@ TwistNet-2D/
 ├── summarize_runs.py      # Results aggregation
 ├── plot_results.py        # Visualization
 ├── ablation.py            # Ablation study
+├── analysis.py            # Theoretical analysis
+├── visualize.py           # Feature visualization
 ├── test_models.py         # Model testing
+├── DATASET.md             # Dataset preparation guide
 └── assets/
     └── architecture.png   # Architecture diagram
 ```

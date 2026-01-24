@@ -1,14 +1,32 @@
 #!/usr/bin/env python3
 """
 Training script for TwistNet-2D benchmarks.
-All models trained from scratch (no ImageNet pretraining).
-Supports: checkpoint resume, mixed precision, dataset-specific augmentation.
 
-Key parameters (matching the original high-accuracy version):
-- lr: 0.05 (NOT 0.01)
-- batch_size: 64 (NOT 32)
-- min_lr: 1e-5 (NOT 1e-6)
-- crop_scale: (0.25, 1.0) for texture datasets (improvement over 0.08)
+All models are trained FROM SCRATCH without ImageNet pretraining to ensure
+fair architectural comparison. This isolates the contribution of each
+architecture from transfer learning effects.
+
+Training Configuration:
+-----------------------
+- Optimizer: SGD (momentum=0.9, nesterov=True)
+- Learning Rate: 0.05 with cosine annealing (min_lr=1e-5)
+- Warmup: 10 epochs (linear)
+- Batch Size: 64
+- Epochs: 200
+- Weight Decay: 1e-4
+- Label Smoothing: 0.1
+- Gradient Clipping: 1.0
+- Mixed Precision: Enabled (AMP)
+
+Data Augmentation:
+------------------
+- RandomResizedCrop: scale=(0.2, 1.0), BICUBIC
+- RandomHorizontalFlip: p=0.5
+- RandAugment: n=2, m=9
+- Mixup: alpha=0.8
+- CutMix: alpha=1.0
+
+Supports: checkpoint resume, mixed precision, multi-fold cross-validation.
 """
 
 import argparse
@@ -175,13 +193,13 @@ def main():
     parser.add_argument("--no_spiral", action="store_true")
     parser.add_argument("--gate_init", type=float, default=-2.0, help="Gate initialization")
     
-    # Training - KEY PARAMETERS (matching original high-accuracy version)
+    # Training
     parser.add_argument("--epochs", type=int, default=200, help="Number of epochs")
-    parser.add_argument("--batch_size", type=int, default=64, help="Batch size (was 32, now 64)")
-    parser.add_argument("--lr", type=float, default=0.05, help="Learning rate (was 0.01, now 0.05)")
+    parser.add_argument("--batch_size", type=int, default=64, help="Batch size")
+    parser.add_argument("--lr", type=float, default=0.05, help="Learning rate")
     parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay")
     parser.add_argument("--warmup_epochs", type=int, default=10, help="Warmup epochs")
-    parser.add_argument("--min_lr", type=float, default=1e-5, help="Minimum LR (was 1e-6, now 1e-5)")
+    parser.add_argument("--min_lr", type=float, default=1e-5, help="Minimum learning rate")
     parser.add_argument("--grad_clip", type=float, default=1.0, help="Gradient clipping")
     
     # Augmentation
@@ -192,7 +210,7 @@ def main():
     parser.add_argument("--label_smoothing", type=float, default=0.1)
     parser.add_argument("--ra_n", type=int, default=2, help="RandAugment num ops")
     parser.add_argument("--ra_m", type=int, default=9, help="RandAugment magnitude")
-    parser.add_argument("--crop_scale_min", type=float, default=0.2, help="Min crop scale (unified 0.2)")
+    parser.add_argument("--crop_scale_min", type=float, default=0.2, help="Min crop scale")
     parser.add_argument("--crop_scale_max", type=float, default=1.0, help="Max crop scale")
     parser.add_argument("--auto_augment", action="store_true", default=True,
                         help="Use dataset-specific augmentation settings")

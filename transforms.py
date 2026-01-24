@@ -1,9 +1,15 @@
 """
 Data augmentation transforms for TwistNet-2D.
-Optimized for training from scratch on texture datasets.
 
-Key insight: The original (0.08, 1.0) crop scale works WITH higher learning rate (0.05).
-For texture datasets, we use (0.25, 1.0) as a balanced choice.
+Optimized for training from scratch on texture and fine-grained datasets.
+Uses unified crop scale (0.2, 1.0) which better preserves texture structure
+compared to ImageNet default (0.08, 1.0).
+
+Augmentation Pipeline:
+- RandomResizedCrop: scale=(0.2, 1.0), BICUBIC interpolation
+- RandomHorizontalFlip: p=0.5
+- RandAugment: n=2 operations, magnitude=9
+- ImageNet normalization: mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
 """
 
 from torchvision import transforms

@@ -2,36 +2,44 @@
 TwistNet-2D: Spiral-Twisted Channel Interactions for Texture Recognition
 =========================================================================
 
+All models are trained FROM SCRATCH without ImageNet pretraining for fair
+architectural comparison. This isolates the contribution of each architecture
+from transfer learning effects.
+
 Model Groups:
 -------------
-Group 1 - Fair Comparison (10-15M params, ImageNet pretrained + fine-tune):
+Group 1 - Fair Comparison (10-16M params):
   - resnet18 (11.7M) - CVPR 2016
   - seresnet18 (11.8M) - CVPR 2018
   - convnextv2_nano (15.6M) - CVPR 2023
+  - fastvit_sa12 (10.9M) - ICCV 2023
+  - efficientformerv2_s2 (12.7M) - ICCV 2023
+  - repvit_m1_5 (14.0M) - CVPR 2024
   - twistnet18 (11.6M) - Ours
 
-Group 2 - Efficiency Comparison (official large models):
-  - convnext_tiny (28M) - CVPR 2022
-  - swin_tiny (28M) - ICCV 2021
-  - efficientnetv2_s (24M) - ICML 2021
+Group 2 - Efficiency Comparison (official large models ~28M):
+  - convnext_tiny (28.6M) - CVPR 2022
+  - convnextv2_tiny (28.6M) - CVPR 2023
+  - swin_tiny (28.3M) - ICCV 2021
+  - maxvit_tiny (30.9M) - ECCV 2022
 
 Usage:
 ------
     from models import build_model, list_models, count_params
-    
-    # Build model with pretrained weights (RECOMMENDED)
-    model = build_model('twistnet18', num_classes=47, pretrained=True)
-    model = build_model('resnet18', num_classes=47, pretrained=True)
-    
-    # Build model from scratch (NOT recommended for small datasets)
+
+    # Build model from scratch (RECOMMENDED for fair comparison)
+    model = build_model('twistnet18', num_classes=47, pretrained=False)
     model = build_model('resnet18', num_classes=47, pretrained=False)
+
+    # Build model with pretrained weights (for transfer learning experiments)
+    model = build_model('resnet18', num_classes=47, pretrained=True)
 """
 
 from __future__ import annotations
 
 import os
 import math
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 
 import torch
 import torch.nn as nn
@@ -88,32 +96,31 @@ def list_models():
     print("=" * 75)
     print("Available Models for TwistNet-2D Benchmark")
     print("=" * 75)
-    print(f"\n{'Model':<25} {'Params':<10} {'Venue':<15} {'Pretrained'}")
+    print(f"\n{'Model':<25} {'Params':<10} {'Venue':<15}")
     print("-" * 75)
-    
+
     print("\n[Group 1: Fair Comparison - 10-16M params - MAIN EXPERIMENTS]")
-    group1 = ['resnet18', 'seresnet18', 'convnextv2_nano', 'fastvit_sa12', 
+    group1 = ['resnet18', 'seresnet18', 'convnextv2_nano', 'fastvit_sa12',
               'efficientformerv2_s2', 'repvit_m1_5', 'twistnet18']
     for name in group1:
         info = MODEL_REGISTRY[name]
-        note = "(ResNet-18 weights)" if name in MODELS_WITHOUT_PRETRAINED else ""
-        print(f"  {name:<23} {info['params']:<10} {info['venue']:<15} Yes {note}")
-    
+        print(f"  {name:<23} {info['params']:<10} {info['venue']:<15}")
+
     print("\n[Group 2: Efficiency Comparison - Official Tiny Models ~25-30M]")
     group2 = ['convnext_tiny', 'convnextv2_tiny', 'swin_tiny', 'maxvit_tiny']
     for name in group2:
         info = MODEL_REGISTRY[name]
-        print(f"  {name:<23} {info['params']:<10} {info['venue']:<15} Yes")
-    
+        print(f"  {name:<23} {info['params']:<10} {info['venue']:<15}")
+
     print("\n[Group 3: Additional Baselines]")
     group3 = ['efficientnet_b0', 'mobilenetv3_large', 'convnextv2_pico', 'regnety_016']
     for name in group3:
         info = MODEL_REGISTRY[name]
-        print(f"  {name:<23} {info['params']:<10} {info['venue']:<15} Yes")
-    
+        print(f"  {name:<23} {info['params']:<10} {info['venue']:<15}")
+
     print("\n" + "=" * 75)
-    print("Note: seresnet18 and twistnet18 use ResNet-18 weights for compatible layers.")
-    print("      SE/STCI modules are randomly initialized and learned during fine-tuning.")
+    print("Note: All models trained FROM SCRATCH for fair architectural comparison.")
+    print("      Pretrained weights available via pretrained=True for transfer learning.")
     print("=" * 75)
 
 
@@ -646,14 +653,11 @@ def load_twistnet_pretrained_weights(model: nn.Module, weights_path: str, verbos
             skipped_keys.append(f"{key} (not in checkpoint)")
     
     model.load_state_dict(model_state)
-    
+
     if verbose:
         print(f"[TwistNet Pretrained] Loaded {len(loaded_keys)} layers from {weights_path}")
         print(f"[TwistNet Pretrained] Skipped {len(skipped_keys)} layers (FC/incompatible)")
-    
-    return model
-    
-    
+
     return model
 
 
@@ -755,29 +759,26 @@ def _load_twistnet_pretrained(model: nn.Module, pretrained) -> nn.Module:
     return model
 
 
-def build_model(name: str, num_classes: int = 47, pretrained: bool = True, **kwargs) -> nn.Module:
+def build_model(name: str, num_classes: int = 47, pretrained: bool = False, **kwargs) -> nn.Module:
     """
     Build model by name.
-    
+
     Args:
         name: Model name (see list_models() for options)
         num_classes: Number of output classes
-        pretrained: Use ImageNet pretrained weights (CRITICAL for small datasets!)
+        pretrained: Use ImageNet pretrained weights (default: False for fair comparison)
         **kwargs: Additional arguments for TwistNet
-    
+
     Returns:
         nn.Module
-    
+
     Examples:
-        # With pretrained (RECOMMENDED for DTD, FMD, etc.)
-        model = build_model('twistnet18', num_classes=47, pretrained=True)
-        model = build_model('resnet18', num_classes=47, pretrained=True)
-        
-        # From scratch (NOT recommended)
+        # From scratch (RECOMMENDED for fair architectural comparison)
+        model = build_model('twistnet18', num_classes=47, pretrained=False)
         model = build_model('resnet18', num_classes=47, pretrained=False)
-        
-        # With TwistNet-specific pretrained weights (BEST)
-        model = build_model('twistnet18', num_classes=47, pretrained='path/to/twistnet18_imagenet.pt')
+
+        # With pretrained (for transfer learning experiments)
+        model = build_model('resnet18', num_classes=47, pretrained=True)
     """
     name = name.lower().replace("-", "_")
     
@@ -911,29 +912,29 @@ if __name__ == "__main__":
     print("=" * 75)
     print("TwistNet-2D Model Zoo")
     print("=" * 75)
-    
+
     list_models()
-    
+
     print("\n" + "=" * 75)
-    print("Testing Model Builds (with pretrained weights)")
+    print("Testing Model Builds (from scratch)")
     print("=" * 75)
-    
+
     x = torch.randn(2, 3, 224, 224)
-    
-    # Test TwistNet with pretrained
-    print("\n[TwistNet-18 with ImageNet pretrained backbone]")
-    model = build_model('twistnet18', num_classes=47, pretrained=True)
+
+    # Test TwistNet from scratch
+    print("\n[TwistNet-18 (from scratch)]")
+    model = build_model('twistnet18', num_classes=47, pretrained=False)
     model.eval()
     with torch.no_grad():
         y = model(x)
     params = count_params(model) / 1e6
     print(f"  twistnet18: {params:.2f}M  output: {y.shape}")
-    
+
     # Test gate values
-    print("\nInitial gate values:")
+    print("\nInitial gate values (sigmoid of gate_init=-2.0):")
     for name, val in list(model.get_gate_values().items())[:4]:
         print(f"  {name.split('.')[-2]}: {val:.4f}")
-    
+
     print("\n" + "=" * 75)
     print("All tests completed!")
     print("=" * 75)

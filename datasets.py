@@ -3,16 +3,21 @@ Dataset loaders for TwistNet-2D benchmarks.
 
 Supported datasets (5):
 1. DTD (Describable Textures Dataset) - 47 classes, 10 official folds
-2. FMD (Flickr Material Database) - 10 classes
-3. KTH-TIPS2 (KTH Textures under varying Illumination, Pose and Scale) - 11 classes
-4. CUB-200-2011 (Caltech-UCSD Birds) - 200 classes
-5. Flowers-102 (Oxford 102 Flowers) - 102 classes
+2. FMD (Flickr Material Database) - 10 classes, 5 folds
+3. KTH-TIPS2 - 11 classes, 4 folds (Leave-One-Sample-Out protocol)
+4. CUB-200-2011 (Caltech-UCSD Birds) - 200 classes, 5 folds
+5. Flowers-102 (Oxford 102 Flowers) - 102 classes, official splits
+
+Note on KTH-TIPS2:
+    Each class has 4 physical samples (a, b, c, d) with multiple images per sample
+    captured under different lighting/scale conditions. To prevent data leakage,
+    we use Leave-One-Sample-Out (LOSO) cross-validation where one physical sample
+    is held out for testing in each fold.
 """
 
 from __future__ import annotations
-import os
 from pathlib import Path
-from typing import Optional, Tuple, Callable, List
+from typing import Tuple, Callable, List
 import random
 
 import torch
@@ -148,55 +153,99 @@ def load_fmd(data_dir: str, fold: int = 1, seed: int = 42) -> Tuple[List, List, 
 
 
 # =============================================================================
-# 3. KTH-TIPS2 Dataset
+# 3. KTH-TIPS2 Dataset (Leave-One-Sample-Out Protocol)
 # =============================================================================
 
 def load_kth_tips2(data_dir: str, fold: int = 1, seed: int = 42) -> Tuple[List, List, List, int]:
     """
-    KTH-TIPS2-b: 11 material categories, 4 samples × 108 images each.
-    Official protocol: Leave-one-sample-out (4-fold), we adapt to 5-fold.
-    
+    KTH-TIPS2-b: 11 material categories, 4 physical samples per class.
+
+    IMPORTANT: Uses Leave-One-Sample-Out (LOSO) protocol to prevent data leakage.
+
+    Each material class has 4 physical samples (a, b, c, d), and each sample has
+    images captured under 9 illuminations × 4 scales = 36 images (or ~108 total
+    with additional variations).
+
+    If we randomly split images, the same physical sample's different lighting/scale
+    variants would appear in both train and test sets, causing severe data leakage.
+
+    LOSO Protocol (4-fold cross-validation):
+        Fold 1: Train on samples a,b,c  |  Test on sample d
+        Fold 2: Train on samples a,b,d  |  Test on sample c
+        Fold 3: Train on samples a,c,d  |  Test on sample b
+        Fold 4: Train on samples b,c,d  |  Test on sample a
+
+    Validation set: 10% randomly sampled from training samples (different physical
+    samples from test, so no leakage).
+
     Structure:
         data_dir/
         ├── aluminium_foil/
         │   ├── sample_a/
-        │   └── ...
+        │   ├── sample_b/
+        │   ├── sample_c/
+        │   └── sample_d/
         └── ...
+
+    Args:
+        data_dir: Path to KTH-TIPS2 dataset root
+        fold: Fold number (1-4), determines which sample is held out for testing
+        seed: Random seed for train/val split
+
+    Returns:
+        train_samples, val_samples, test_samples, num_classes
     """
     data_dir = Path(data_dir)
     classes = sorted([d.name for d in data_dir.iterdir() if d.is_dir()])
     class_to_idx = {c: i for i, c in enumerate(classes)}
-    
+
+    # Validate fold number
+    if fold < 1 or fold > 4:
+        raise ValueError(f"KTH-TIPS2 uses 4-fold LOSO protocol. Got fold={fold}, expected 1-4.")
+
+    # LOSO: Map fold number to test sample
+    # Fold 1 -> test sample_d, Fold 2 -> test sample_c, etc.
+    sample_names = ['sample_a', 'sample_b', 'sample_c', 'sample_d']
+    test_sample_idx = 4 - fold  # fold 1->3(d), fold 2->2(c), fold 3->1(b), fold 4->0(a)
+    test_sample_name = sample_names[test_sample_idx]
+
     rng = random.Random(seed + fold)
     train_samples, val_samples, test_samples = [], [], []
-    
+
     for cls_name in classes:
         cls_dir = data_dir / cls_name
-        samples_dirs = sorted([d for d in cls_dir.iterdir() if d.is_dir()])
-        
-        # Collect all images
-        all_images = []
-        for sample_dir in samples_dirs:
+        label = class_to_idx[cls_name]
+
+        # Get all sample directories
+        available_samples = sorted([d.name for d in cls_dir.iterdir() if d.is_dir()])
+
+        cls_train_images = []
+        cls_test_images = []
+
+        for sample_name in available_samples:
+            sample_dir = cls_dir / sample_name
             images = list(sample_dir.glob("*.png")) + list(sample_dir.glob("*.jpg"))
-            all_images.extend([str(p) for p in images])
-        
-        rng.shuffle(all_images)
-        n = len(all_images)
-        fold_size = n // 5
-        
-        test_start = (fold - 1) * fold_size
-        test_end = test_start + fold_size
-        val_end = min(test_end + fold_size, n)
-        
-        for i, img in enumerate(all_images):
-            label = class_to_idx[cls_name]
-            if test_start <= i < test_end:
-                test_samples.append((img, label))
-            elif test_end <= i < val_end:
-                val_samples.append((img, label))
+            image_paths = [str(p) for p in images]
+
+            # Check if this sample should be test or train
+            if sample_name == test_sample_name:
+                cls_test_images.extend(image_paths)
             else:
-                train_samples.append((img, label))
-    
+                cls_train_images.extend(image_paths)
+
+        # Add test samples
+        for img_path in cls_test_images:
+            test_samples.append((img_path, label))
+
+        # Split train into train/val (90/10)
+        rng.shuffle(cls_train_images)
+        val_size = max(1, len(cls_train_images) // 10)
+        for i, img_path in enumerate(cls_train_images):
+            if i < val_size:
+                val_samples.append((img_path, label))
+            else:
+                train_samples.append((img_path, label))
+
     return train_samples, val_samples, test_samples, len(classes)
 
 
@@ -310,17 +359,17 @@ def get_dataloaders(
 ) -> Tuple[DataLoader, DataLoader, DataLoader, int]:
     """
     Get train, val, test dataloaders for any supported dataset.
-    
+
     Args:
         data_dir: Path to dataset root
         dataset: Dataset name (dtd, fmd, kth_tips2, cub200, flowers102)
-        fold: Fold number (1-10 for DTD, 1-5 for others)
+        fold: Fold number (1-10 for DTD, 1-4 for KTH-TIPS2, 1-5 for others)
         train_transform: Transform for training
         eval_transform: Transform for evaluation
         batch_size: Batch size
         num_workers: Number of workers
         seed: Random seed for reproducibility
-    
+
     Returns:
         train_loader, val_loader, test_loader, num_classes
     """
@@ -393,9 +442,9 @@ DATASET_INFO = {
         "url": "https://people.csail.mit.edu/celiu/CVPR2010/FMD/",
     },
     "kth_tips2": {
-        "name": "KTH-TIPS2-b",
+        "name": "KTH-TIPS2-b (LOSO protocol)",
         "classes": 11,
-        "folds": 5,
+        "folds": 4,  # Leave-One-Sample-Out: 4 physical samples per class
         "url": "https://www.csc.kth.se/cvap/databases/kth-tips/",
     },
     "cub200": {

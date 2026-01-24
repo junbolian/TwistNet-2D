@@ -2,26 +2,28 @@
 """
 run_all.py - Batch experiment runner for TwistNet-2D benchmarks.
 
+All models are trained FROM SCRATCH without ImageNet pretraining to ensure
+fair architectural comparison.
+
 Features:
 - Automatically skips completed experiments (checks results.json)
 - Resume from checkpoint for interrupted experiments
 - Parallel-safe: multiple instances can run different experiments
-- All models trained from scratch (no ImageNet pretraining)
 
-Key parameters (matching original high-accuracy version):
-- lr: 0.05
-- batch_size: 64
-- crop_scale: (0.25, 1.0) per dataset
+Training Configuration:
+- Learning Rate: 0.05
+- Batch Size: 64
+- Epochs: 200
+- Crop Scale: (0.2, 1.0)
 
 Usage:
-    python run_all.py --data_dir data/dtd --dataset dtd --folds 1-10 --seeds 42,43,44 \
+    python run_all.py --data_dir data/dtd --dataset dtd --folds 1-10 --seeds 42,43,44 \\
         --models resnet18,twistnet18 --epochs 200
 """
 
 import argparse
 import subprocess
 import sys
-import json
 from pathlib import Path
 from itertools import product
 
@@ -87,7 +89,15 @@ def main():
     seeds = parse_range(args.seeds)
     models = [m.strip() for m in args.models.split(",")]
     run_dir = Path(args.run_dir)
-    
+
+    # Validate folds for KTH-TIPS2 (LOSO protocol requires exactly 4 folds)
+    if args.dataset.lower() == "kth_tips2":
+        invalid_folds = [f for f in folds if f > 4]
+        if invalid_folds:
+            print(f"[ERROR] KTH-TIPS2 uses 4-fold LOSO protocol. Invalid folds: {invalid_folds}")
+            print("        Use --folds 1-4 for KTH-TIPS2")
+            sys.exit(1)
+
     # Validate models
     for m in models:
         if m not in VALID_MODELS:
