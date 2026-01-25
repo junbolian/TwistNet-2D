@@ -9,6 +9,7 @@
   <a href="#quick-start">Quick Start</a> •
   <a href="#experiments">Experiments</a> •
   <a href="#results">Results</a> •
+  <a href="#visualization">Visualization</a> •
   <a href="#citation">Citation</a>
 </p>
 
@@ -156,14 +157,84 @@ python run_all.py --data_dir data/dtd --dataset dtd \
 ### Generate Results
 
 ```bash
-# LaTeX tables
+# LaTeX tables (mean±std format for top venues)
 python summarize_runs.py --run_dir runs/main --latex > tables/main_results.tex
 python summarize_runs.py --run_dir runs/ablation --latex > tables/ablation.tex
 
-# Figures
-python plot_results.py --run_dir runs/main --save_dir figures --plot bar
-python plot_results.py --run_dir runs/ablation --save_dir figures --plot ablation
+# CSV export
+python summarize_runs.py --run_dir runs/main --csv > tables/main_results.csv
+
+# Text summary with statistics
+python summarize_runs.py --run_dir runs/main --summary
 ```
+
+## Visualization
+
+We provide publication-quality visualization tools for ECCV/CVPR/ICCV submissions.
+
+### Publication Figures (`plot_results.py`)
+
+Generates Nature/Science-style figures with colorblind-friendly palettes, 300 DPI output (PDF + PNG).
+
+```bash
+# Bar chart - model comparison across datasets
+python plot_results.py --run_dir runs/main --save_dir figures --plot bar
+
+# Radar chart - multi-dataset performance comparison
+python plot_results.py --run_dir runs/main --save_dir figures --plot radar
+
+# Scatter plot - parameters vs accuracy trade-off
+python plot_results.py --run_dir runs/main --save_dir figures --plot scatter --dataset dtd
+
+# Ablation study bar chart (with delta annotations)
+python plot_results.py --run_dir runs/ablation --save_dir figures --plot ablation
+
+# Efficiency analysis - params vs inference time
+python plot_results.py --save_dir figures --plot efficiency
+
+# Generate all figures at once
+python plot_results.py --run_dir runs/main --save_dir figures --plot all
+```
+
+### Model Visualization (`visualize.py`)
+
+Visualize TwistNet's internal representations.
+
+```bash
+# Spiral interaction matrices (4-directional channel correlations)
+python visualize.py --checkpoint runs/main/dtd_fold1_twistnet18_seed42/best.pt \
+    --image data/dtd/images/banded/banded_0001.jpg --save_dir vis
+
+# Gate value evolution during training
+python visualize.py --log_file runs/main/dtd_fold1_twistnet18_seed42/log.jsonl --save_dir vis
+```
+
+### Advanced Visualization
+
+```bash
+# t-SNE feature visualization (requires checkpoint + data)
+python plot_results.py --checkpoint runs/main/dtd_fold1_twistnet18_seed42/best.pt \
+    --data_dir data/dtd --plot tsne --save_dir figures
+
+# Interaction heatmaps for sample image
+python plot_results.py --checkpoint runs/main/dtd_fold1_twistnet18_seed42/best.pt \
+    --image data/dtd/images/striped/striped_0001.jpg --plot interaction --save_dir figures
+```
+
+### Output Files
+
+| Script | Output | Description |
+|--------|--------|-------------|
+| `plot_results.py` | `figures/bar_chart.pdf` | Model comparison bar chart |
+| `plot_results.py` | `figures/radar_chart.pdf` | Multi-dataset radar chart |
+| `plot_results.py` | `figures/params_accuracy.pdf` | Params vs accuracy scatter |
+| `plot_results.py` | `figures/ablation.pdf` | Ablation study results |
+| `plot_results.py` | `figures/efficiency.pdf` | Inference efficiency plot |
+| `plot_results.py` | `figures/tsne.pdf` | t-SNE feature embedding |
+| `visualize.py` | `vis/spiral_interactions.png` | 4-direction interaction matrices |
+| `visualize.py` | `vis/feature_maps.png` | Multi-stage feature maps |
+| `visualize.py` | `vis/gate_evolution.png` | Gate value learning curves |
+| `visualize.py` | `vis/class_patterns.png` | Per-class interaction patterns |
 
 ## Training Configuration
 
@@ -275,18 +346,23 @@ Empirically, we observe that TwistNet trained from scratch significantly outperf
 ```
 TwistNet-2D/
 ├── models.py              # Model definitions (TwistNet + baselines)
-├── train.py               # Training script
-├── run_all.py             # Batch experiment runner
+├── train.py               # Single experiment training script
+├── run_all.py             # Batch experiment runner (multi-fold, multi-seed)
+├── datasets.py            # Dataset loaders (DTD, FMD, KTH-TIPS2, CUB-200, Flowers-102)
+├── transforms.py          # Data augmentation (RandAugment, Mixup, CutMix)
 ├── compute_flops.py       # FLOPs and parameters calculation
-├── datasets.py            # Dataset loaders
-├── transforms.py          # Data augmentation
-├── summarize_runs.py      # Results aggregation
-├── plot_results.py        # Visualization
-├── ablation.py            # Ablation study
+├── summarize_runs.py      # Results aggregation (LaTeX mean±std tables)
+├── plot_results.py        # Publication figures (bar, radar, scatter, t-SNE)
+├── visualize.py           # Model internals (interaction matrices, gates, features)
+├── ablation.py            # Ablation study runner
 ├── analysis.py            # Theoretical analysis
-├── visualize.py           # Feature visualization
-├── test_models.py         # Model testing
+├── test_models.py         # Model testing and validation
 ├── DATASET.md             # Dataset preparation guide
+├── data/                  # Datasets (see DATASET.md)
+├── runs/                  # Experiment outputs (checkpoints, logs, results.json)
+├── figures/               # Generated publication figures (PDF + PNG)
+├── vis/                   # Model visualization outputs
+├── tables/                # Generated LaTeX tables
 └── assets/
     └── architecture.png   # Architecture diagram
 ```
