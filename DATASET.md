@@ -71,6 +71,16 @@ tar -xzf dtd-r1.0.1.tar.gz -C data/
 
 ### 2. FMD (Flickr Material Database)
 
+> **5-Fold Cross-Validation Protocol**
+>
+> FMD uses standard 5-fold cross-validation with 60/20/20 split (train/val/test).
+> Each fold rotates which portion is used for testing, with validation wrapping around:
+> - Fold 1: test=0, val=1, train=2,3,4
+> - Fold 2: test=1, val=2, train=0,3,4
+> - Fold 3: test=2, val=3, train=0,1,4
+> - Fold 4: test=3, val=4, train=0,1,2
+> - Fold 5: test=4, val=0, train=1,2,3
+
 ```bash
 # Download from official website
 # https://people.csail.mit.edu/celiu/CVPR2010/FMD/

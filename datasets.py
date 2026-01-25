@@ -109,8 +109,15 @@ class DTDDataset(Dataset):
 def load_fmd(data_dir: str, fold: int = 1, seed: int = 42) -> Tuple[List, List, List, int]:
     """
     FMD: 10 material categories, 100 images each.
-    We use 5-fold cross-validation (80/10/10 split per class).
-    
+    We use 5-fold cross-validation (60/20/20 split per class).
+
+    Fold assignment (with wrap-around for validation):
+        Fold 1: test=0, val=1, train=2,3,4
+        Fold 2: test=1, val=2, train=0,3,4
+        Fold 3: test=2, val=3, train=0,1,4
+        Fold 4: test=3, val=4, train=0,1,2
+        Fold 5: test=4, val=0, train=1,2,3  (val wraps around!)
+
     Structure:
         data_dir/
         ├── fabric/
@@ -120,35 +127,36 @@ def load_fmd(data_dir: str, fold: int = 1, seed: int = 42) -> Tuple[List, List, 
     data_dir = Path(data_dir)
     classes = sorted([d.name for d in data_dir.iterdir() if d.is_dir()])
     class_to_idx = {c: i for i, c in enumerate(classes)}
-    
+
     # Use fold-specific seed for reproducibility
     rng = random.Random(seed + fold)
     train_samples, val_samples, test_samples = [], [], []
-    
+
+    # Fold indices (0-4), with wrap-around for validation
+    test_fold_idx = fold - 1  # fold 1 -> idx 0, fold 5 -> idx 4
+    val_fold_idx = (test_fold_idx + 1) % 5  # wrap around: fold 5's val is idx 0
+
     for cls_name in classes:
         cls_dir = data_dir / cls_name
-        images = sorted([str(p) for p in cls_dir.glob("*.jpg")] + 
+        images = sorted([str(p) for p in cls_dir.glob("*.jpg")] +
                        [str(p) for p in cls_dir.glob("*.png")])
         rng.shuffle(images)
-        
+
         n = len(images)
         fold_size = n // 5
-        
-        # 5-fold cross-validation
-        test_start = (fold - 1) * fold_size
-        test_end = test_start + fold_size
-        val_start = test_end
-        val_end = min(val_start + fold_size, n)
-        
+
+        # Assign each image to a fold index (0-4)
         for i, img in enumerate(images):
             label = class_to_idx[cls_name]
-            if test_start <= i < test_end:
+            img_fold_idx = i // fold_size if i < fold_size * 5 else 4  # handle remainder
+
+            if img_fold_idx == test_fold_idx:
                 test_samples.append((img, label))
-            elif val_start <= i < val_end:
+            elif img_fold_idx == val_fold_idx:
                 val_samples.append((img, label))
             else:
                 train_samples.append((img, label))
-    
+
     return train_samples, val_samples, test_samples, len(classes)
 
 
