@@ -99,14 +99,15 @@ def print_text_table(aggregated, datasets, models):
 
 
 def print_latex_table(aggregated, datasets, models):
-    """Print LaTeX table."""
-    print("\n% LaTeX Table")
+    """Print LaTeX table with mean±std format (standard for top venues)."""
+    print("\n% LaTeX Table (mean ± std)")
     print("\\begin{table}[t]")
     print("\\centering")
-    print("\\caption{Results on texture and fine-grained benchmarks.}")
+    print("\\caption{Test accuracy (\\%) on texture and fine-grained benchmarks. "
+          "Results are reported as mean $\\pm$ std over multiple folds and seeds.}")
     print("\\label{tab:results}")
     print("\\small")
-    
+
     # Header
     cols = "l" + "c" * len(datasets)
     print(f"\\begin{{tabular}}{{{cols}}}")
@@ -114,30 +115,33 @@ def print_latex_table(aggregated, datasets, models):
     header = "Model & " + " & ".join([d.upper() for d in datasets]) + " \\\\"
     print(header)
     print("\\midrule")
-    
+
     # Find best for each dataset
     best = {}
     for dataset in datasets:
-        dataset_results = [(m, aggregated.get((dataset, m))) for m in models 
+        dataset_results = [(m, aggregated.get((dataset, m))) for m in models
                           if (dataset, m) in aggregated]
         if dataset_results:
             best[dataset] = max(dataset_results, key=lambda x: x[1]["test_mean"])[0]
-    
-    # Rows
+
+    # Rows - with mean±std format
     for model in models:
         row = model.replace("_", "\\_")
         for dataset in datasets:
             if (dataset, model) in aggregated:
                 stats = aggregated[(dataset, model)]
-                acc = f"{stats['test_mean']:.1f}"
+                mean = stats['test_mean']
+                std = stats['test_std']
+                # Format: mean±std (e.g., 72.3±1.2)
+                acc = f"{mean:.1f}$\\pm${std:.1f}"
                 if model == best.get(dataset):
-                    acc = f"\\textbf{{{acc}}}"
+                    acc = f"\\textbf{{{mean:.1f}}}$\\pm${std:.1f}"
                 row += f" & {acc}"
             else:
                 row += " & -"
         row += " \\\\"
         print(row)
-    
+
     print("\\bottomrule")
     print("\\end{tabular}")
     print("\\end{table}")
