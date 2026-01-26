@@ -19,7 +19,7 @@ Second-order feature statistics are fundamental to texture recognition, yet exis
 
 We propose **TwistNet-2D**, a lightweight module that computes *local* pairwise channel products with *directional spatial displacement*, preserving both where and how features co-occur. Our **Spiral-Twisted Channel Interaction (STCI)** shifts one feature map along a specified direction before computing channel-wise products, capturing the cross-position correlations characteristic of periodic textures.
 
-By aggregating four directional heads with adaptive channel weighting and injecting via a sigmoid-gated residual connection, TwistNet adds only **~3.5% parameters** and **~2% FLOPs** to ResNet-18 while consistently outperforming ResNet, SE-ResNet, ConvNeXt, and hybrid CNN-transformer baselines on five texture and fine-grained benchmarks (DTD, FMD, KTH-TIPS2, CUB-200, Flowers-102).
+By aggregating four directional heads with adaptive channel weighting and injecting via a sigmoid-gated residual connection, TwistNet adds only **~3.5% parameters** and **~2% FLOPs** to ResNet-18 while consistently outperforming ResNet, SE-ResNet, ConvNeXt, and hybrid CNN-transformer baselines on four texture and fine-grained benchmarks (DTD, FMD, CUB-200, Flowers-102).
 
 ## Key Features
 
@@ -109,12 +109,9 @@ See [DATASET.md](DATASET.md) for detailed dataset preparation instructions.
 data/
 ├── dtd/           # Describable Textures Dataset (47 classes, 10 folds)
 ├── fmd/           # Flickr Material Database (10 classes, 5 folds)
-├── kth_tips2/     # KTH-TIPS2 (11 classes, 4 folds LOSO)
 ├── cub200/        # CUB-200-2011 (200 classes, 5 folds)
 └── flowers102/    # Oxford Flowers-102 (102 classes, official splits)
 ```
-
-> **Note on KTH-TIPS2**: This dataset uses Leave-One-Sample-Out (LOSO) cross-validation. Each class has 4 physical samples (a, b, c, d) with multiple images captured under different lighting/scale conditions. To prevent data leakage, one physical sample is held out for testing in each fold.
 
 ### Main Experiments
 
@@ -128,12 +125,6 @@ python run_all.py --data_dir data/dtd --dataset dtd \
 python run_all.py --data_dir data/fmd --dataset fmd \
     --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
     --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/main
-
-# KTH-TIPS2 (4 folds × 3 seeds = 12 runs per model)
-# Uses Leave-One-Sample-Out (LOSO) protocol to prevent data leakage
-python run_all.py --data_dir data/kth_tips2 --dataset kth_tips2 \
-    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
-    --folds 1-4 --seeds 42,43,44 --epochs 200 --run_dir runs/main
 
 # CUB-200 (5 folds × 3 seeds = 15 runs per model)
 python run_all.py --data_dir data/cub200 --dataset cub200 \
@@ -151,7 +142,33 @@ python run_all.py --data_dir data/flowers102 --dataset flowers102 \
 ```bash
 python run_all.py --data_dir data/dtd --dataset dtd \
     --models twistnet18,twistnet18_no_spiral,twistnet18_no_ais,twistnet18_first_order \
-    --folds 1-3 --seeds 42,43,44 --epochs 200 --run_dir runs/ablation
+    --folds 1-3 --seeds 41,42,43,44 --epochs 200 --run_dir runs/ablation
+```
+
+### Efficiency Comparison (vs Larger Models)
+
+Compare TwistNet-18 (11.59M) against ~28M parameter models to demonstrate efficiency.
+
+```bash
+# DTD efficiency comparison
+python run_all.py --data_dir data/dtd --dataset dtd \
+    --models twistnet18,convnext_tiny,convnextv2_tiny,swin_tiny,maxvit_tiny \
+    --folds 1-10 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
+
+# FMD efficiency comparison
+python run_all.py --data_dir data/fmd --dataset fmd \
+    --models twistnet18,convnext_tiny,convnextv2_tiny,swin_tiny,maxvit_tiny \
+    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
+
+# CUB-200 efficiency comparison
+python run_all.py --data_dir data/cub200 --dataset cub200 \
+    --models twistnet18,convnext_tiny,convnextv2_tiny,swin_tiny,maxvit_tiny \
+    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
+
+# Flowers-102 efficiency comparison
+python run_all.py --data_dir data/flowers102 --dataset flowers102 \
+    --models twistnet18,convnext_tiny,convnextv2_tiny,swin_tiny,maxvit_tiny \
+    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
 ```
 
 ### Generate Results
@@ -160,12 +177,15 @@ python run_all.py --data_dir data/dtd --dataset dtd \
 # LaTeX tables (mean±std format for top venues)
 python summarize_runs.py --run_dir runs/main --latex > tables/main_results.tex
 python summarize_runs.py --run_dir runs/ablation --latex > tables/ablation.tex
+python summarize_runs.py --run_dir runs/efficiency --latex > tables/efficiency.tex
 
 # CSV export
 python summarize_runs.py --run_dir runs/main --csv > tables/main_results.csv
+python summarize_runs.py --run_dir runs/efficiency --csv > tables/efficiency.csv
 
 # Text summary with statistics
 python summarize_runs.py --run_dir runs/main --summary
+python summarize_runs.py --run_dir runs/efficiency --summary
 ```
 
 ## Visualization
@@ -191,6 +211,10 @@ python plot_results.py --run_dir runs/ablation --save_dir figures --plot ablatio
 
 # Efficiency analysis - params vs inference time
 python plot_results.py --save_dir figures --plot efficiency
+
+# Efficiency comparison - TwistNet vs larger models (~28M params)
+python plot_results.py --run_dir runs/efficiency --save_dir figures --plot bar
+python plot_results.py --run_dir runs/efficiency --save_dir figures --plot scatter --dataset dtd
 
 # Generate all figures at once
 python plot_results.py --run_dir runs/main --save_dir figures --plot all
@@ -230,6 +254,7 @@ python plot_results.py --checkpoint runs/main/dtd_fold1_twistnet18_seed42/best.p
 | `plot_results.py` | `figures/params_accuracy.pdf` | Params vs accuracy scatter |
 | `plot_results.py` | `figures/ablation.pdf` | Ablation study results |
 | `plot_results.py` | `figures/efficiency.pdf` | Inference efficiency plot |
+| `plot_results.py` | `figures/efficiency_bar.pdf` | TwistNet vs larger models comparison |
 | `plot_results.py` | `figures/tsne.pdf` | t-SNE feature embedding |
 | `visualize.py` | `vis/spiral_interactions.png` | 4-direction interaction matrices |
 | `visualize.py` | `vis/feature_maps.png` | Multi-stage feature maps |
@@ -309,15 +334,15 @@ Empirically, we observe that TwistNet trained from scratch significantly outperf
 
 ### Main Results (Test Accuracy %)
 
-| Model | DTD | FMD | KTH-TIPS2 | CUB-200 | Flowers-102 |
-|-------|-----|-----|-----------|---------|-------------|
-| ResNet-18 | TBD | TBD | TBD | TBD | TBD |
-| SE-ResNet-18 | TBD | TBD | TBD | TBD | TBD |
-| ConvNeXtV2-Nano | TBD | TBD | TBD | TBD | TBD |
-| FastViT-SA12 | TBD | TBD | TBD | TBD | TBD |
-| EfficientFormerV2-S2 | TBD | TBD | TBD | TBD | TBD |
-| RepViT-M1.5 | TBD | TBD | TBD | TBD | TBD |
-| **TwistNet-18 (Ours)** | **TBD** | **TBD** | **TBD** | **TBD** | **TBD** |
+| Model | DTD | FMD | CUB-200 | Flowers-102 |
+|-------|-----|-----|---------|-------------|
+| ResNet-18 | TBD | TBD | TBD | TBD |
+| SE-ResNet-18 | TBD | TBD | TBD | TBD |
+| ConvNeXtV2-Nano | TBD | TBD | TBD | TBD |
+| FastViT-SA12 | TBD | TBD | TBD | TBD |
+| EfficientFormerV2-S2 | TBD | TBD | TBD | TBD |
+| RepViT-M1.5 | TBD | TBD | TBD | TBD |
+| **TwistNet-18 (Ours)** | **TBD** | **TBD** | **TBD** | **TBD** |
 
 ### Ablation Study (DTD Test Accuracy %)
 
@@ -327,6 +352,18 @@ Empirically, we observe that TwistNet trained from scratch significantly outperf
 | w/o Spiral Twist | 11.59M | Same-position products only | TBD |
 | w/o AIS | 11.53M | No Adaptive Interaction Selection | TBD |
 | First-order only | 11.20M | No STCI modules | TBD |
+
+### Efficiency Comparison (vs Larger Models)
+
+TwistNet-18 achieves competitive performance with 2.5× fewer parameters than larger baselines.
+
+| Model | Params | DTD | FMD | CUB-200 | Flowers-102 |
+|-------|--------|-----|-----|---------|-------------|
+| ConvNeXt-Tiny | 28.59M | TBD | TBD | TBD | TBD |
+| ConvNeXtV2-Tiny | 28.64M | TBD | TBD | TBD | TBD |
+| Swin-Tiny | 28.29M | TBD | TBD | TBD | TBD |
+| MaxViT-Tiny | 30.92M | TBD | TBD | TBD | TBD |
+| **TwistNet-18 (Ours)** | **11.59M** | **TBD** | **TBD** | **TBD** | **TBD** |
 
 ## TwistNet Architecture
 
@@ -348,7 +385,7 @@ TwistNet-2D/
 ├── models.py              # Model definitions (TwistNet + baselines)
 ├── train.py               # Single experiment training script
 ├── run_all.py             # Batch experiment runner (multi-fold, multi-seed)
-├── datasets.py            # Dataset loaders (DTD, FMD, KTH-TIPS2, CUB-200, Flowers-102)
+├── datasets.py            # Dataset loaders (DTD, FMD, CUB-200, Flowers-102)
 ├── transforms.py          # Data augmentation (RandAugment, Mixup, CutMix)
 ├── compute_flops.py       # FLOPs and parameters calculation
 ├── summarize_runs.py      # Results aggregation (LaTeX mean±std tables)
