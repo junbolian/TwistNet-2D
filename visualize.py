@@ -376,8 +376,8 @@ def visualize_direction_selectivity(model, image_paths: list, save_dir: str = "v
         'axes.labelsize': 10,
     })
 
-    # Create figure: N rows × 5 columns (input + 4 directions)
-    fig, axes = plt.subplots(n_samples, 5, figsize=(12, 2.8 * n_samples))
+    # Create figure: N rows × 5 columns (input + 4 directions) + colorbar space
+    fig, axes = plt.subplots(n_samples, 5, figsize=(11, 2.5 * n_samples))
     if n_samples == 1:
         axes = axes.reshape(1, -1)
 
@@ -403,8 +403,8 @@ def visualize_direction_selectivity(model, image_paths: list, save_dir: str = "v
 
         # === Column 0: Input image ===
         axes[row, 0].imshow(img)
-        axes[row, 0].set_ylabel(label, fontsize=11, fontweight='bold',
-                                 rotation=0, ha='right', va='center', labelpad=50)
+        # Show label below input image (not as ylabel to save space)
+        axes[row, 0].set_xlabel(label, fontsize=10, fontweight='bold')
         axes[row, 0].set_xticks([])
         axes[row, 0].set_yticks([])
         for spine in axes[row, 0].spines.values():
@@ -450,14 +450,15 @@ def visualize_direction_selectivity(model, image_paths: list, save_dir: str = "v
             if row == 0:
                 axes[row, col+1].set_title(direction, fontsize=11, fontweight='bold', pad=8)
 
-    # Add colorbar on the right
+    plt.tight_layout()
+    plt.subplots_adjust(hspace=0.3, wspace=0.08, right=0.88)
+
+    # Add colorbar on the far right
     if im_last is not None:
-        cbar = fig.colorbar(im_last, ax=axes, shrink=0.6, pad=0.02, aspect=30)
+        cbar_ax = fig.add_axes([0.90, 0.15, 0.02, 0.7])  # [left, bottom, width, height]
+        cbar = fig.colorbar(im_last, cax=cbar_ax)
         cbar.set_label('Correlation', fontsize=10)
         cbar.ax.tick_params(labelsize=9)
-
-    plt.tight_layout()
-    plt.subplots_adjust(hspace=0.35, wspace=0.08)
 
     # Save both PNG and PDF
     plt.savefig(save_dir / 'direction_selectivity.png', dpi=300, bbox_inches='tight',

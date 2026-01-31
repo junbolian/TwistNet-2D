@@ -159,12 +159,13 @@ def aggregate_results(results):
 def plot_bar_chart(aggregated, datasets=None, models=None, save_path="figures/bar_chart.pdf"):
     """Bar chart comparing models across datasets."""
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-    
+
     if datasets is None:
-        datasets = sorted(set(k[0] for k in aggregated.keys()))
+        datasets = sorted(set(k[0] for k in aggregated.keys() if k[0] in DATASET_NAMES))
     if models is None:
-        models = sorted(set(k[1] for k in aggregated.keys()))
-    
+        # Only include models defined in COLORS (filter out removed models)
+        models = sorted(set(k[1] for k in aggregated.keys() if k[1] in COLORS))
+
     # Filter to available data
     datasets = [d for d in datasets if any((d, m) in aggregated for m in models)]
     models = [m for m in models if any((d, m) in aggregated for d in datasets)]
@@ -222,12 +223,13 @@ def plot_bar_chart(aggregated, datasets=None, models=None, save_path="figures/ba
 def plot_radar_chart(aggregated, datasets=None, models=None, save_path="figures/radar_chart.pdf"):
     """Radar chart for multi-dataset performance comparison."""
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-    
+
     if datasets is None:
-        datasets = sorted(set(k[0] for k in aggregated.keys()))
+        datasets = sorted(set(k[0] for k in aggregated.keys() if k[0] in DATASET_NAMES))
     if models is None:
-        models = sorted(set(k[1] for k in aggregated.keys()))
-    
+        # Only include models defined in COLORS (filter out removed models)
+        models = sorted(set(k[1] for k in aggregated.keys() if k[1] in COLORS))
+
     # Filter
     datasets = [d for d in datasets if any((d, m) in aggregated for m in models)]
     models = [m for m in models if any((d, m) in aggregated for d in datasets)]
@@ -274,11 +276,12 @@ def plot_radar_chart(aggregated, datasets=None, models=None, save_path="figures/
 def plot_params_vs_accuracy(aggregated, dataset='dtd', save_path="figures/params_accuracy.pdf"):
     """Scatter plot: Parameters vs Accuracy."""
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-    
+
     fig, ax = plt.subplots(figsize=(8, 6))
-    
-    models = sorted(set(k[1] for k in aggregated.keys() if k[0] == dataset))
-    
+
+    # Only include models defined in COLORS (filter out removed models like efficientformerv2_s2)
+    models = sorted(set(k[1] for k in aggregated.keys() if k[0] == dataset and k[1] in COLORS))
+
     for model in models:
         key = (dataset, model)
         if key not in aggregated:
@@ -634,14 +637,11 @@ def plot_interaction_heatmap(model, image_path_or_list, save_path="figures/inter
 
     # Create figure
     fig, axes = plt.subplots(n_samples, n_directions + 1,
-                             figsize=(12, 2.5 * n_samples))
+                             figsize=(11, 2.5 * n_samples))
 
     # Handle single row case
     if n_samples == 1:
         axes = axes.reshape(1, -1)
-
-    # Column headers
-    col_titles = ['Input'] + directions
 
     im = None  # For colorbar
 
@@ -669,13 +669,15 @@ def plot_interaction_heatmap(model, image_path_or_list, save_path="figures/inter
 
         # Plot input image
         axes[row, 0].imshow(img)
-        axes[row, 0].set_ylabel(label, fontsize=11, fontweight='bold', rotation=0,
-                                labelpad=50, va='center')
+        # Show label below input image (not as ylabel to save space)
+        axes[row, 0].set_xlabel(label, fontsize=10, fontweight='bold')
         axes[row, 0].set_xticks([])
         axes[row, 0].set_yticks([])
+        for spine in axes[row, 0].spines.values():
+            spine.set_visible(False)
 
         if row == 0:
-            axes[row, 0].set_title('Input', fontsize=10, fontweight='bold')
+            axes[row, 0].set_title('Input', fontsize=11, fontweight='bold', pad=8)
 
         # Plot 4 direction heatmaps
         for col, (mat, direction) in enumerate(zip(matrices[:4], directions)):
@@ -709,15 +711,18 @@ def plot_interaction_heatmap(model, image_path_or_list, save_path="figures/inter
 
             # Column titles on first row
             if row == 0:
-                axes[row, col+1].set_title(direction, fontsize=10, fontweight='bold')
-
-    # Add colorbar
-    if im is not None:
-        cbar = fig.colorbar(im, ax=axes, shrink=0.6, pad=0.02, aspect=30)
-        cbar.set_label('Correlation', fontsize=9)
+                axes[row, col+1].set_title(direction, fontsize=11, fontweight='bold', pad=8)
 
     plt.tight_layout()
-    plt.subplots_adjust(hspace=0.3, wspace=0.1)
+    plt.subplots_adjust(hspace=0.3, wspace=0.08, right=0.88)
+
+    # Add colorbar on the far right
+    if im is not None:
+        cbar_ax = fig.add_axes([0.90, 0.15, 0.02, 0.7])  # [left, bottom, width, height]
+        cbar = fig.colorbar(im, cax=cbar_ax)
+        cbar.set_label('Correlation', fontsize=10)
+        cbar.ax.tick_params(labelsize=9)
+
     plt.savefig(save_path, bbox_inches='tight', dpi=300)
     plt.savefig(save_path.replace('.pdf', '.png'), bbox_inches='tight', dpi=300)
     plt.close()
