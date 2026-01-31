@@ -44,12 +44,11 @@ def parse_range(s: str):
 VALID_MODELS = [
     # Group 1: Fair comparison (10-16M params) - MAIN
     "resnet18", "seresnet18", "convnextv2_nano", "convnextv2_pico",
-    "fastvit_sa12", "efficientformerv2_s2", "repvit_m1_5",
-    "twistnet18",
+    "fastvit_sa12", "repvit_m1_5", "twistnet18",
     # Ablation
     "twistnet18_no_spiral", "twistnet18_no_ais", "twistnet18_first_order",
-    # Group 2: Efficiency comparison (official tiny ~25-30M)
-    "convnext_tiny", "convnextv2_tiny", "swin_tiny", "maxvit_tiny",
+    # Group 2: Efficiency comparison (official tiny ~28M)
+    "convnext_tiny", "swin_tiny",
     # Group 3: Additional
     "efficientnet_b0", "efficientnetv2_s", "mobilenetv3_large", "regnety_016",
 ]

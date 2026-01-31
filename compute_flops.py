@@ -17,14 +17,13 @@ python compute_flops.py --latex            # LaTeX table output
 === REFERENCE VALUES (from timm/papers) ===
 Model                   Params      FLOPs (224x224)
 -----------------------------------------------------
-resnet18                11.69M      1.82G
-seresnet18              11.78M      1.82G
-convnextv2_nano         15.62M      2.45G
-fastvit_sa12            10.93M      1.42G
-efficientformerv2_s1    12.70M      0.66G
-repvit_m1_5             14.04M      2.30G
-convnext_tiny           28.59M      4.47G
-swin_tiny               28.29M      4.51G
+resnet18                11.20M      1.82G
+seresnet18              11.29M      1.82G
+convnextv2_nano         15.01M      2.45G
+fastvit_sa12            10.60M      1.50G
+repvit_m1_5             13.67M      2.31G
+convnext_tiny           27.86M      4.47G
+swin_tiny               27.56M      4.51G
 
 === MANUAL FLOPs CALCULATION FOR TWISTNET ===
 
@@ -175,15 +174,14 @@ def main():
         print("Showing reference values from timm/papers instead:")
         print("="*60)
         reference = [
-            ("resnet18", "11.69M", "1.82G"),
-            ("seresnet18", "11.78M", "1.82G"),
-            ("convnextv2_nano", "15.62M", "2.45G"),
-            ("fastvit_sa12", "10.93M", "1.42G"),
-            ("efficientformerv2_s1", "12.70M", "0.66G"),
-            ("repvit_m1_5", "14.04M", "2.30G"),
-            ("twistnet18", "~11.6M", "~1.93G (estimated)"),
-            ("convnext_tiny", "28.59M", "4.47G"),
-            ("swin_tiny", "28.29M", "4.51G"),
+            ("resnet18", "11.20M", "1.82G"),
+            ("seresnet18", "11.29M", "1.82G"),
+            ("convnextv2_nano", "15.01M", "2.45G"),
+            ("fastvit_sa12", "10.60M", "1.50G"),
+            ("repvit_m1_5", "13.67M", "2.31G"),
+            ("twistnet18", "11.59M", "1.85G"),
+            ("convnext_tiny", "27.86M", "4.47G"),
+            ("swin_tiny", "27.56M", "4.51G"),
         ]
         for name, params, flops in reference:
             print(f"{name:30s} | Params: {params:>10s} | FLOPs: {flops:>15s}")
@@ -197,10 +195,9 @@ def main():
         models_to_compute = [
             # Group 1: Parameter-matched
             'resnet18',
-            'seresnet18', 
+            'seresnet18',
             'convnextv2_nano',
             'fastvit_sa12',
-            'efficientformerv2_s1',
             'repvit_m1_5',
             'twistnet18',
             # Group 2: Larger

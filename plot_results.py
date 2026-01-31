@@ -66,14 +66,12 @@ except ImportError:
 # Color palette (colorblind-friendly)
 COLORS = {
     'resnet18': '#4C72B0',
-    'seresnet18': '#55A868', 
+    'seresnet18': '#55A868',
     'convnextv2_nano': '#C44E52',
     'fastvit_sa12': '#8172B3',
-    'efficientformerv2_s2': '#CCB974',
     'repvit_m1_5': '#64B5CD',
     'twistnet18': '#DD8452',  # Our method - highlighted
     'convnext_tiny': '#937860',
-    'convnextv2_tiny': '#DA8BC3',
     'swin_tiny': '#8C8C8C',
 }
 
@@ -83,18 +81,15 @@ MODEL_NAMES = {
     'seresnet18': 'SE-ResNet-18',
     'convnextv2_nano': 'ConvNeXtV2-N',
     'fastvit_sa12': 'FastViT-SA12',
-    'efficientformerv2_s2': 'EfficientFormerV2-S2',
     'repvit_m1_5': 'RepViT-M1.5',
     'twistnet18': 'TwistNet-18 (Ours)',
     'convnext_tiny': 'ConvNeXt-T',
-    'convnextv2_tiny': 'ConvNeXtV2-T',
     'swin_tiny': 'Swin-T',
 }
 
 DATASET_NAMES = {
     'dtd': 'DTD',
-    'fmd': 'FMD', 
-    'kth_tips2': 'KTH-TIPS2',
+    'fmd': 'FMD',
     'cub200': 'CUB-200',
     'flowers102': 'Flowers-102',
 }

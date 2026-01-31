@@ -19,9 +19,8 @@ def test_models():
     # Group 1: Fair comparison models (10-16M params)
     print("\n[Group 1: Fair Comparison (10-16M params)]")
     models_group1 = [
-        'resnet18', 'seresnet18', 'convnextv2_nano', 
-        'fastvit_sa12', 'efficientformerv2_s2', 'repvit_m1_5',
-        'twistnet18'
+        'resnet18', 'seresnet18', 'convnextv2_nano',
+        'fastvit_sa12', 'repvit_m1_5', 'twistnet18'
     ]
     
     for name in models_group1:
@@ -51,8 +50,8 @@ def test_models():
             print(f"  {name:<25} FAILED: {e}")
     
     # Group 2: Efficiency comparison (larger models)
-    print("\n[Group 2: Efficiency Comparison (~25-30M params)]")
-    models_group2 = ['convnext_tiny', 'convnextv2_tiny', 'swin_tiny']
+    print("\n[Group 2: Efficiency Comparison (~28M params)]")
+    models_group2 = ['convnext_tiny', 'swin_tiny']
     
     for name in models_group2:
         try:
@@ -92,10 +91,10 @@ def quick_test():
     """Quick one-liner test."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     x = torch.randn(2, 3, 224, 224).to(device)
-    
-    models = ['resnet18', 'seresnet18', 'convnextv2_nano', 'fastvit_sa12', 
-              'efficientformerv2_s2', 'repvit_m1_5', 'twistnet18']
-    
+
+    models = ['resnet18', 'seresnet18', 'convnextv2_nano', 'fastvit_sa12',
+              'repvit_m1_5', 'twistnet18']
+
     for name in models:
         model = build_model(name, num_classes=47, pretrained=False).to(device)
         y = model(x)

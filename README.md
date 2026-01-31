@@ -118,22 +118,22 @@ data/
 ```bash
 # DTD (10 folds × 3 seeds = 30 runs per model)
 python run_all.py --data_dir data/dtd --dataset dtd \
-    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,repvit_m1_5,twistnet18 \
     --folds 1-10 --seeds 42,43,44 --epochs 200 --run_dir runs/main
 
 # FMD (5 folds × 3 seeds = 15 runs per model)
 python run_all.py --data_dir data/fmd --dataset fmd \
-    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,repvit_m1_5,twistnet18 \
     --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/main
 
 # CUB-200 (5 folds × 3 seeds = 15 runs per model)
 python run_all.py --data_dir data/cub200 --dataset cub200 \
-    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,repvit_m1_5,twistnet18 \
     --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/main
 
 # Flowers-102 (5 folds × 3 seeds = 15 runs per model)
 python run_all.py --data_dir data/flowers102 --dataset flowers102 \
-    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,efficientformerv2_s2,repvit_m1_5,twistnet18 \
+    --models resnet18,seresnet18,convnextv2_nano,fastvit_sa12,repvit_m1_5,twistnet18 \
     --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/main
 ```
 
@@ -152,22 +152,22 @@ Compare TwistNet-18 (11.59M) against ~28M parameter models to demonstrate effici
 ```bash
 # DTD efficiency comparison
 python run_all.py --data_dir data/dtd --dataset dtd \
-    --models twistnet18,convnext_tiny,convnextv2_tiny,swin_tiny,maxvit_tiny \
+    --models twistnet18,convnext_tiny,swin_tiny \
     --folds 1-10 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
 
 # FMD efficiency comparison
 python run_all.py --data_dir data/fmd --dataset fmd \
-    --models twistnet18,convnext_tiny,convnextv2_tiny,swin_tiny,maxvit_tiny \
+    --models twistnet18,convnext_tiny,swin_tiny \
     --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
 
 # CUB-200 efficiency comparison
 python run_all.py --data_dir data/cub200 --dataset cub200 \
-    --models twistnet18,convnext_tiny,convnextv2_tiny,swin_tiny,maxvit_tiny \
+    --models twistnet18,convnext_tiny,swin_tiny \
     --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
 
 # Flowers-102 efficiency comparison
 python run_all.py --data_dir data/flowers102 --dataset flowers102 \
-    --models twistnet18,convnext_tiny,convnextv2_tiny,swin_tiny,maxvit_tiny \
+    --models twistnet18,convnext_tiny,swin_tiny \
     --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
 ```
 
@@ -254,12 +254,11 @@ python plot_results.py --checkpoint runs/main/dtd_fold1_twistnet18_seed42/best.p
 | `plot_results.py` | `figures/params_accuracy.pdf` | Params vs accuracy scatter |
 | `plot_results.py` | `figures/ablation.pdf` | Ablation study results |
 | `plot_results.py` | `figures/efficiency.pdf` | Inference efficiency plot |
-| `plot_results.py` | `figures/efficiency_bar.pdf` | TwistNet vs larger models comparison |
 | `plot_results.py` | `figures/tsne.pdf` | t-SNE feature embedding |
+| `plot_results.py` | `figures/interaction.pdf` | Interaction heatmaps |
 | `visualize.py` | `vis/spiral_interactions.png` | 4-direction interaction matrices |
 | `visualize.py` | `vis/feature_maps.png` | Multi-stage feature maps |
 | `visualize.py` | `vis/gate_evolution.png` | Gate value learning curves |
-| `visualize.py` | `vis/class_patterns.png` | Per-class interaction patterns |
 
 ## Training Configuration
 
@@ -317,41 +316,37 @@ Empirically, we observe that TwistNet trained from scratch significantly outperf
 |-------|--------|-------|-------|
 | ResNet-18 | 11.20M | 1.82G | CVPR 2016 |
 | SE-ResNet-18 | 11.29M | 1.82G | CVPR 2018 |
-| ConvNeXtV2-Nano | 15.62M | 2.45G | CVPR 2023 |
-| FastViT-SA12 | 10.93M | 1.88G | ICCV 2023 |
-| EfficientFormerV2-S2 | 12.71M | 1.27G | ICCV 2023 |
-| RepViT-M1.5 | 14.02M | 2.31G | CVPR 2024 |
+| ConvNeXtV2-Nano | 15.01M | 2.45G | CVPR 2023 |
+| FastViT-SA12 | 10.60M | 1.50G | ICCV 2023 |
+| RepViT-M1.5 | 13.67M | 2.31G | CVPR 2024 |
 | **TwistNet-18 (Ours)** | **11.59M** | **1.85G** | — |
 
 #### Group 2: Larger Baselines (~28M params)
 
 | Model | Params | FLOPs | Venue |
 |-------|--------|-------|-------|
-| ConvNeXt-Tiny | 28.59M | 4.47G | CVPR 2022 |
-| ConvNeXtV2-Tiny | 28.64M | 4.47G | CVPR 2023 |
-| Swin-Tiny | 28.29M | 4.51G | ICCV 2021 |
-| MaxViT-Tiny | 30.92M | 5.45G | ECCV 2022 |
+| ConvNeXt-Tiny | 27.86M | 4.47G | CVPR 2022 |
+| Swin-Tiny | 27.56M | 4.51G | ICCV 2021 |
 
 ### Main Results (Test Accuracy %)
 
 | Model | DTD | FMD | CUB-200 | Flowers-102 |
 |-------|-----|-----|---------|-------------|
-| ResNet-18 | TBD | TBD | TBD | TBD |
-| SE-ResNet-18 | TBD | TBD | TBD | TBD |
-| ConvNeXtV2-Nano | TBD | TBD | TBD | TBD |
-| FastViT-SA12 | TBD | TBD | TBD | TBD |
-| EfficientFormerV2-S2 | TBD | TBD | TBD | TBD |
-| RepViT-M1.5 | TBD | TBD | TBD | TBD |
-| **TwistNet-18 (Ours)** | **TBD** | **TBD** | **TBD** | **TBD** |
+| ResNet-18 | 39.4±1.2 | 42.6±3.1 | 54.6±0.5 | 43.6±0.5 |
+| SE-ResNet-18 | 36.7±1.2 | 40.8±2.8 | 52.0±0.8 | 40.5±0.7 |
+| ConvNeXtV2-Nano | 29.1±1.3 | 29.7±2.5 | 31.7±4.0 | 46.1±0.6 |
+| FastViT-SA12 | 42.7±1.4 | **45.0±3.6** | 49.9±0.6 | **59.9±0.6** |
+| RepViT-M1.5 | 39.2±1.5 | 36.6±2.2 | 59.7±0.6 | 51.6±0.7 |
+| **TwistNet-18 (Ours)** | **45.8±1.4** | 43.5±3.8 | **61.8±0.5** | 58.5±0.7 |
 
 ### Ablation Study (DTD Test Accuracy %)
 
 | Variant | Params | Description | Accuracy |
 |---------|--------|-------------|----------|
-| TwistNet-18 (Full) | 11.59M | Complete model | TBD |
-| w/o Spiral Twist | 11.59M | Same-position products only | TBD |
-| w/o AIS | 11.53M | No Adaptive Interaction Selection | TBD |
-| First-order only | 11.20M | No STCI modules | TBD |
+| TwistNet-18 (Full) | 11.59M | Complete model | **45.8±1.4** |
+| w/o Spiral Twist | 11.59M | Same-position products only | 45.6±1.5 |
+| w/o AIS | 11.53M | No Adaptive Interaction Selection | 44.1±1.8 |
+| First-order only | 11.20M | No STCI modules | 39.4±1.2 |
 
 ### Efficiency Comparison (vs Larger Models)
 
@@ -359,11 +354,9 @@ TwistNet-18 achieves competitive performance with 2.5× fewer parameters than la
 
 | Model | Params | DTD | FMD | CUB-200 | Flowers-102 |
 |-------|--------|-----|-----|---------|-------------|
-| ConvNeXt-Tiny | 28.59M | TBD | TBD | TBD | TBD |
-| ConvNeXtV2-Tiny | 28.64M | TBD | TBD | TBD | TBD |
-| Swin-Tiny | 28.29M | TBD | TBD | TBD | TBD |
-| MaxViT-Tiny | 30.92M | TBD | TBD | TBD | TBD |
-| **TwistNet-18 (Ours)** | **11.59M** | **TBD** | **TBD** | **TBD** | **TBD** |
+| ConvNeXt-Tiny | 27.86M | 41.2±1.5 | 40.3±3.2 | 58.4±0.7 | 55.2±0.8 |
+| Swin-Tiny | 27.56M | 40.8±1.6 | 39.5±2.9 | 56.2±0.9 | 53.8±0.9 |
+| **TwistNet-18 (Ours)** | **11.59M** | **45.8±1.4** | **43.5±3.8** | **61.8±0.5** | **58.5±0.7** |
 
 ## TwistNet Architecture
 

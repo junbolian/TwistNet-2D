@@ -9,19 +9,16 @@ from transfer learning effects.
 Model Groups:
 -------------
 Group 1 - Fair Comparison (10-16M params):
-  - resnet18 (11.7M) - CVPR 2016
-  - seresnet18 (11.8M) - CVPR 2018
-  - convnextv2_nano (15.6M) - CVPR 2023
-  - fastvit_sa12 (10.9M) - ICCV 2023
-  - efficientformerv2_s2 (12.7M) - ICCV 2023
-  - repvit_m1_5 (14.0M) - CVPR 2024
-  - twistnet18 (11.6M) - Ours
+  - resnet18 (11.20M) - CVPR 2016
+  - seresnet18 (11.29M) - CVPR 2018
+  - convnextv2_nano (15.01M) - CVPR 2023
+  - fastvit_sa12 (10.60M) - ICCV 2023
+  - repvit_m1_5 (13.67M) - CVPR 2024
+  - twistnet18 (11.59M) - Ours
 
 Group 2 - Efficiency Comparison (official large models ~28M):
-  - convnext_tiny (28.6M) - CVPR 2022
-  - convnextv2_tiny (28.6M) - CVPR 2023
-  - swin_tiny (28.3M) - ICCV 2021
-  - maxvit_tiny (30.9M) - ECCV 2022
+  - convnext_tiny (27.86M) - CVPR 2022
+  - swin_tiny (27.56M) - ICCV 2021
 
 Usage:
 ------
@@ -64,21 +61,18 @@ MODEL_REGISTRY = {
     # Group 1: Fair Comparison (10-16M params) - Main experiments
     # All models have ImageNet pretrained weights available
     # =========================================================================
-    'resnet18': {'timm_name': 'resnet18', 'params': '11.7M', 'venue': 'CVPR 2016', 'group': 1, 'pretrained': True},
-    'seresnet18': {'timm_name': 'seresnet18', 'params': '11.8M', 'venue': 'CVPR 2018', 'group': 1, 'pretrained': True},  # Uses ResNet-18 weights
-    'convnextv2_nano': {'timm_name': 'convnextv2_nano', 'params': '15.6M', 'venue': 'CVPR 2023', 'group': 1, 'pretrained': True},
-    'fastvit_sa12': {'timm_name': 'fastvit_sa12', 'params': '10.9M', 'venue': 'ICCV 2023', 'group': 1, 'pretrained': True},
-    'efficientformerv2_s2': {'timm_name': 'efficientformerv2_s2', 'params': '12.7M', 'venue': 'ICCV 2023', 'group': 1, 'pretrained': True},
-    'repvit_m1_5': {'timm_name': 'repvit_m1_5', 'params': '14.0M', 'venue': 'CVPR 2024', 'group': 1, 'pretrained': True},
-    'twistnet18': {'timm_name': None, 'params': '11.6M', 'venue': 'Ours', 'group': 1, 'pretrained': True},
-    
+    'resnet18': {'timm_name': 'resnet18', 'params': '11.20M', 'venue': 'CVPR 2016', 'group': 1, 'pretrained': True},
+    'seresnet18': {'timm_name': 'seresnet18', 'params': '11.29M', 'venue': 'CVPR 2018', 'group': 1, 'pretrained': True},  # Uses ResNet-18 weights
+    'convnextv2_nano': {'timm_name': 'convnextv2_nano', 'params': '15.01M', 'venue': 'CVPR 2023', 'group': 1, 'pretrained': True},
+    'fastvit_sa12': {'timm_name': 'fastvit_sa12', 'params': '10.60M', 'venue': 'ICCV 2023', 'group': 1, 'pretrained': True},
+    'repvit_m1_5': {'timm_name': 'repvit_m1_5', 'params': '13.67M', 'venue': 'CVPR 2024', 'group': 1, 'pretrained': True},
+    'twistnet18': {'timm_name': None, 'params': '11.59M', 'venue': 'Ours', 'group': 1, 'pretrained': True},
+
     # =========================================================================
     # Group 2: Efficiency Comparison (official tiny/small ~25-30M)
     # =========================================================================
-    'convnext_tiny': {'timm_name': 'convnext_tiny', 'params': '28.6M', 'venue': 'CVPR 2022', 'group': 2, 'pretrained': True},
-    'convnextv2_tiny': {'timm_name': 'convnextv2_tiny', 'params': '28.6M', 'venue': 'CVPR 2023', 'group': 2, 'pretrained': True},
-    'swin_tiny': {'timm_name': 'swin_tiny_patch4_window7_224', 'params': '28.3M', 'venue': 'ICCV 2021', 'group': 2, 'pretrained': True},
-    'maxvit_tiny': {'timm_name': 'maxvit_tiny_tf_224', 'params': '30.9M', 'venue': 'ECCV 2022', 'group': 2, 'pretrained': True},
+    'convnext_tiny': {'timm_name': 'convnext_tiny', 'params': '27.86M', 'venue': 'CVPR 2022', 'group': 2, 'pretrained': True},
+    'swin_tiny': {'timm_name': 'swin_tiny_patch4_window7_224', 'params': '27.56M', 'venue': 'ICCV 2021', 'group': 2, 'pretrained': True},
     
     # =========================================================================
     # Group 3: Additional baselines (various sizes)
@@ -101,13 +95,13 @@ def list_models():
 
     print("\n[Group 1: Fair Comparison - 10-16M params - MAIN EXPERIMENTS]")
     group1 = ['resnet18', 'seresnet18', 'convnextv2_nano', 'fastvit_sa12',
-              'efficientformerv2_s2', 'repvit_m1_5', 'twistnet18']
+              'repvit_m1_5', 'twistnet18']
     for name in group1:
         info = MODEL_REGISTRY[name]
         print(f"  {name:<23} {info['params']:<10} {info['venue']:<15}")
 
-    print("\n[Group 2: Efficiency Comparison - Official Tiny Models ~25-30M]")
-    group2 = ['convnext_tiny', 'convnextv2_tiny', 'swin_tiny', 'maxvit_tiny']
+    print("\n[Group 2: Efficiency Comparison - Official Tiny Models ~28M]")
+    group2 = ['convnext_tiny', 'swin_tiny']
     for name in group2:
         info = MODEL_REGISTRY[name]
         print(f"  {name:<23} {info['params']:<10} {info['venue']:<15}")
@@ -890,13 +884,13 @@ def count_params(model: nn.Module, trainable_only: bool = True) -> int:
 
 def get_fair_comparison_models() -> List[str]:
     """Models for fair comparison (10-16M params) - MAIN EXPERIMENTS."""
-    return ['resnet18', 'seresnet18', 'convnextv2_nano', 'fastvit_sa12', 
-            'efficientformerv2_s2', 'repvit_m1_5', 'twistnet18']
+    return ['resnet18', 'seresnet18', 'convnextv2_nano', 'fastvit_sa12',
+            'repvit_m1_5', 'twistnet18']
 
 
 def get_efficiency_comparison_models() -> List[str]:
-    """Official large models for efficiency comparison (~25-30M)."""
-    return ['convnext_tiny', 'convnextv2_tiny', 'swin_tiny', 'maxvit_tiny']
+    """Official large models for efficiency comparison (~28M)."""
+    return ['convnext_tiny', 'swin_tiny']
 
 
 def get_ablation_models() -> List[str]:
