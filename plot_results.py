@@ -630,7 +630,7 @@ def plot_interaction_heatmap(model, image_path_or_list, save_path="figures/inter
 
     n_samples = len(image_info_list)
     n_directions = 4
-    directions = ['0°', '45°', '90°', '135°']
+    directions = [r'0° $\rightarrow$', r'45° $\nearrow$', r'90° $\uparrow$', r'135° $\nwarrow$']
 
     # Create figure
     fig, axes = plt.subplots(n_samples, n_directions + 1,

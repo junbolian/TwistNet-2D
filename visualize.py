@@ -48,7 +48,7 @@ def visualize_spiral_interactions(model, image_tensor, save_dir: str = "vis"):
     fig, axes = plt.subplots(2, 4, figsize=(20, 10))
     fig.suptitle("Spiral-Twisted Interaction Matrices by Direction", fontsize=14)
     
-    directions = ["0 deg (horizontal)", "45 deg (diagonal)", "90 deg (vertical)", "135 deg (anti-diag)"]
+    directions = [r"0° $\rightarrow$", r"45° $\nearrow$", r"90° $\uparrow$", r"135° $\nwarrow$"]
     
     block_idx = 0
     for name, layer in [('layer3', model.layer3), ('layer4', model.layer4)]:
@@ -337,31 +337,205 @@ def visualize_class_patterns(model, dataloader, class_names: list = None,
     print(f"Saved: {save_dir / 'class_patterns.png'}")
 
 
+@torch.no_grad()
+def visualize_direction_selectivity(model, image_paths: list, save_dir: str = "vis"):
+    """
+    Visualize direction selectivity: different texture orientations activate corresponding direction heads.
+
+    This is the KEY visualization for demonstrating that spiral directions learn orientation-specific patterns.
+
+    Args:
+        model: TwistNet model
+        image_paths: list of (image_path, label) tuples
+            e.g., [('horizontal.jpg', 'Horizontal'), ('vertical.jpg', 'Vertical'), ...]
+        save_dir: output directory
+
+    Output layout:
+        - Each row = one sample image
+        - Column 0 = input image
+        - Columns 1-4 = interaction heatmaps for 0°, 45°, 90°, 135°
+        - Red border highlights the strongest direction per row
+        - μ values shown below each heatmap (red & bold for max)
+    """
+    save_dir = Path(save_dir)
+    save_dir.mkdir(exist_ok=True, parents=True)
+
+    model.eval()
+    device = next(model.parameters()).device
+    transform = build_eval_transform()
+
+    n_samples = len(image_paths)
+    directions = [r'0° $\rightarrow$', r'45° $\nearrow$', r'90° $\uparrow$', r'135° $\nwarrow$']
+
+    # Professional figure styling
+    plt.rcParams.update({
+        'font.family': 'sans-serif',
+        'font.sans-serif': ['Arial', 'DejaVu Sans'],
+        'font.size': 10,
+        'axes.titlesize': 11,
+        'axes.labelsize': 10,
+    })
+
+    # Create figure: N rows × 5 columns (input + 4 directions)
+    fig, axes = plt.subplots(n_samples, 5, figsize=(12, 2.8 * n_samples))
+    if n_samples == 1:
+        axes = axes.reshape(1, -1)
+
+    im_last = None  # For colorbar
+
+    for row, (img_path, label) in enumerate(image_paths):
+        # Load image
+        img = Image.open(img_path).convert("RGB")
+        x = transform(img).unsqueeze(0).to(device)
+
+        # Get features and interaction matrices from layer3
+        feats = model.get_features(x)
+
+        matrices = None
+        for block in model.layer3:
+            if isinstance(block, TwistBlock):
+                matrices = block.mhstci.get_all_interaction_matrices(feats['layer3'])
+                break
+
+        if matrices is None:
+            print(f"[Warning] No TwistBlock found for {img_path}")
+            continue
+
+        # === Column 0: Input image ===
+        axes[row, 0].imshow(img)
+        axes[row, 0].set_ylabel(label, fontsize=11, fontweight='bold',
+                                 rotation=0, ha='right', va='center', labelpad=50)
+        axes[row, 0].set_xticks([])
+        axes[row, 0].set_yticks([])
+        for spine in axes[row, 0].spines.values():
+            spine.set_visible(False)
+
+        if row == 0:
+            axes[row, 0].set_title('Input', fontsize=11, fontweight='bold', pad=8)
+
+        # Compute mean absolute activation for each direction
+        mean_acts = [mat[0].abs().mean().item() for mat in matrices[:4]]
+        max_dir = np.argmax(mean_acts)
+
+        # === Columns 1-4: Direction heatmaps ===
+        for col, (mat, direction) in enumerate(zip(matrices[:4], directions)):
+            mat_np = mat[0].cpu().numpy()
+
+            im = axes[row, col+1].imshow(mat_np, cmap='RdBu_r', vmin=-0.5, vmax=0.5)
+            im_last = im
+
+            # Highlight max direction with red border
+            is_max = (col == max_dir)
+            if is_max:
+                for spine in axes[row, col+1].spines.values():
+                    spine.set_edgecolor('#E74C3C')
+                    spine.set_linewidth(3)
+                    spine.set_visible(True)
+            else:
+                for spine in axes[row, col+1].spines.values():
+                    spine.set_visible(False)
+
+            # Show μ value below heatmap
+            mu = mean_acts[col]
+            color = '#E74C3C' if is_max else '#666666'
+            weight = 'bold' if is_max else 'normal'
+            axes[row, col+1].text(0.5, -0.15, f'$\\mu$={mu:.3f}',
+                                   transform=axes[row, col+1].transAxes,
+                                   ha='center', fontsize=9, color=color, fontweight=weight)
+
+            axes[row, col+1].set_xticks([])
+            axes[row, col+1].set_yticks([])
+
+            # Column titles on first row only
+            if row == 0:
+                axes[row, col+1].set_title(direction, fontsize=11, fontweight='bold', pad=8)
+
+    # Add colorbar on the right
+    if im_last is not None:
+        cbar = fig.colorbar(im_last, ax=axes, shrink=0.6, pad=0.02, aspect=30)
+        cbar.set_label('Correlation', fontsize=10)
+        cbar.ax.tick_params(labelsize=9)
+
+    plt.tight_layout()
+    plt.subplots_adjust(hspace=0.35, wspace=0.08)
+
+    # Save both PNG and PDF
+    plt.savefig(save_dir / 'direction_selectivity.png', dpi=300, bbox_inches='tight',
+                facecolor='white', edgecolor='none')
+    plt.savefig(save_dir / 'direction_selectivity.pdf', bbox_inches='tight',
+                facecolor='white', edgecolor='none')
+    plt.close()
+    print(f"Saved: {save_dir / 'direction_selectivity.png'}")
+    print(f"Saved: {save_dir / 'direction_selectivity.pdf'}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TwistNet Visualization Tools")
     parser.add_argument("--checkpoint", type=str, help="Path to model checkpoint")
-    parser.add_argument("--image", type=str, help="Path to input image")
+    parser.add_argument("--image", type=str, help="Path to single input image")
+    parser.add_argument("--images", type=str, nargs='+',
+                        help="Multiple images for direction selectivity: path1:label1 path2:label2 ...")
     parser.add_argument("--log_file", type=str, help="Path to training log (log.jsonl)")
     parser.add_argument("--run_dir", type=str, help="Path to run directory")
     parser.add_argument("--compare", nargs='+', help="Multiple run directories to compare")
     parser.add_argument("--save_dir", type=str, default="vis", help="Output directory")
     parser.add_argument("--num_classes", type=int, default=47)
     args = parser.parse_args()
-    
+
     transform = build_eval_transform()
-    
-    # Visualize model internals
-    if args.checkpoint and args.image:
-        print("\n[Visualizing model internals]")
+
+    # Direction selectivity visualization (multi-image)
+    if args.checkpoint and args.images:
+        print("\n[Visualizing direction selectivity]")
         model = build_model("twistnet18", num_classes=args.num_classes, pretrained=False)
-        model.load_state_dict(torch.load(args.checkpoint, map_location='cpu'))
+
+        # Handle different checkpoint formats
+        checkpoint = torch.load(args.checkpoint, map_location='cpu')
+        if 'model' in checkpoint:
+            state_dict = checkpoint['model']
+        elif 'state_dict' in checkpoint:
+            state_dict = checkpoint['state_dict']
+        else:
+            state_dict = checkpoint
+        model.load_state_dict(state_dict)
         model.eval()
-        
+
         if torch.cuda.is_available():
             model = model.cuda()
-        
+
+        # Parse "path:label" format
+        image_info_list = []
+        for item in args.images:
+            if ':' in item:
+                path, label = item.rsplit(':', 1)
+            else:
+                path = item
+                label = Path(item).stem
+            image_info_list.append((path, label))
+
+        visualize_direction_selectivity(model, image_info_list, args.save_dir)
+
+    # Single image visualization (spiral interactions + feature maps)
+    elif args.checkpoint and args.image:
+        print("\n[Visualizing model internals]")
+        model = build_model("twistnet18", num_classes=args.num_classes, pretrained=False)
+
+        # Handle different checkpoint formats
+        checkpoint = torch.load(args.checkpoint, map_location='cpu')
+        if 'model' in checkpoint:
+            state_dict = checkpoint['model']
+        elif 'state_dict' in checkpoint:
+            state_dict = checkpoint['state_dict']
+        else:
+            state_dict = checkpoint
+        model.load_state_dict(state_dict)
+        model.eval()
+
+        if torch.cuda.is_available():
+            model = model.cuda()
+
         img_tensor = load_image(args.image, transform)
-        
+
         visualize_spiral_interactions(model, img_tensor, args.save_dir)
         visualize_feature_maps(model, img_tensor, args.save_dir)
     
