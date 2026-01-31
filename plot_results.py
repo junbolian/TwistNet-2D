@@ -305,7 +305,7 @@ def plot_params_vs_accuracy(aggregated, dataset='dtd', save_path="figures/params
     
     ax.set_xlabel('Parameters (M)')
     ax.set_ylabel(f'Test Accuracy on {DATASET_NAMES.get(dataset, dataset)} (%)')
-    ax.legend(loc='lower right', frameon=True)
+    ax.legend(loc='upper right', frameon=True)
     ax.grid(True, linestyle='--', alpha=0.3)
     
     # Add Pareto frontier hint
@@ -641,7 +641,7 @@ def plot_interaction_heatmap(model, image_path, save_path="figures/interaction_h
     axes[0].axis('off')
     
     # 4 direction matrices
-    directions = ['0° (→)', '45° (↗)', '90° (↑)', '135° (↖)']
+    directions = ['0° (H)', '45° (D1)', '90° (V)', '135° (D2)']
     for i, (mat, direction) in enumerate(zip(matrices[:4], directions)):
         mat_np = mat[0].cpu().numpy()
         im = axes[i+1].imshow(mat_np, cmap='coolwarm', vmin=-0.5, vmax=0.5)
