@@ -595,65 +595,131 @@ def plot_gate_evolution(log_file, save_path="figures/gate_evolution.pdf"):
 
 
 # =============================================================================
-# 8. Interaction Matrix Heatmap
+# 8. Interaction Matrix Heatmap (Multi-image version for direction selectivity)
 # =============================================================================
 
 @torch.no_grad()
-def plot_interaction_heatmap(model, image_path, save_path="figures/interaction_heatmap.pdf"):
-    """Visualize interaction matrices for a sample image."""
+def plot_interaction_heatmap(model, image_path_or_list, save_path="figures/interaction.pdf"):
+    """
+    Visualize interaction matrices to demonstrate direction selectivity.
+
+    Args:
+        model: TwistNet model
+        image_path_or_list: Either a single image path (str) or a list of (image_path, label) tuples
+            e.g., [('striped_h.jpg', 'Horizontal'), ('striped_v.jpg', 'Vertical'), ...]
+        save_path: Output path for the figure
+    """
     if not TORCH_AVAILABLE:
         print("PyTorch not available")
         return
-    
+
     from PIL import Image
-    
+    from models import TwistBlock
+
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-    
+
     transform = build_eval_transform()
-    img = Image.open(image_path).convert('RGB')
-    x = transform(img).unsqueeze(0)
-    
     model.eval()
     device = next(model.parameters()).device
-    x = x.to(device)
-    
-    feats = model.get_features(x)
-    
-    # Get interaction matrices from first TwistBlock
-    from models import TwistBlock
-    
-    matrices = None
-    for block in model.layer3:
-        if isinstance(block, TwistBlock):
-            matrices = block.mhstci.get_all_interaction_matrices(feats['layer3'])
-            break
-    
-    if matrices is None:
-        print("No TwistBlock found")
-        return
-    
-    # Plot
-    fig, axes = plt.subplots(1, 5, figsize=(15, 3))
-    
-    # Original image
-    axes[0].imshow(img)
-    axes[0].set_title('Input Image')
-    axes[0].axis('off')
-    
-    # 4 direction matrices
-    directions = ['0° (H)', '45° (D1)', '90° (V)', '135° (D2)']
-    for i, (mat, direction) in enumerate(zip(matrices[:4], directions)):
-        mat_np = mat[0].cpu().numpy()
-        im = axes[i+1].imshow(mat_np, cmap='coolwarm', vmin=-0.5, vmax=0.5)
-        axes[i+1].set_title(f'Direction {direction}')
-        axes[i+1].axis('off')
-    
-    plt.colorbar(im, ax=axes, shrink=0.8, label='Correlation')
-    plt.suptitle('Spiral-Twisted Channel Interaction Matrices', fontsize=12)
-    
+
+    # Handle both single image and list of images
+    if isinstance(image_path_or_list, str):
+        image_info_list = [(image_path_or_list, 'Input')]
+    else:
+        image_info_list = image_path_or_list
+
+    n_samples = len(image_info_list)
+    n_directions = 4
+    directions = ['0°', '45°', '90°', '135°']
+
+    # Create figure
+    fig, axes = plt.subplots(n_samples, n_directions + 1,
+                             figsize=(12, 2.5 * n_samples))
+
+    # Handle single row case
+    if n_samples == 1:
+        axes = axes.reshape(1, -1)
+
+    # Column headers
+    col_titles = ['Input'] + directions
+
+    im = None  # For colorbar
+
+    for row, (img_path, label) in enumerate(image_info_list):
+        # Load and process image
+        img = Image.open(img_path).convert('RGB')
+        x = transform(img).unsqueeze(0).to(device)
+
+        # Get features and interaction matrices
+        feats = model.get_features(x)
+
+        matrices = None
+        for block in model.layer3:
+            if isinstance(block, TwistBlock):
+                matrices = block.mhstci.get_all_interaction_matrices(feats['layer3'])
+                break
+
+        if matrices is None:
+            print(f"No TwistBlock found for {img_path}")
+            continue
+
+        # Compute mean activation for each direction
+        mean_activations = [m.abs().mean().item() for m in matrices[:4]]
+        max_dir = np.argmax(mean_activations)
+
+        # Plot input image
+        axes[row, 0].imshow(img)
+        axes[row, 0].set_ylabel(label, fontsize=11, fontweight='bold', rotation=0,
+                                labelpad=50, va='center')
+        axes[row, 0].set_xticks([])
+        axes[row, 0].set_yticks([])
+
+        if row == 0:
+            axes[row, 0].set_title('Input', fontsize=10, fontweight='bold')
+
+        # Plot 4 direction heatmaps
+        for col, (mat, direction) in enumerate(zip(matrices[:4], directions)):
+            mat_np = mat[0].cpu().numpy()
+
+            # Check if this is the strongest direction
+            is_max = (col == max_dir)
+
+            im = axes[row, col+1].imshow(mat_np, cmap='RdBu_r', vmin=-0.5, vmax=0.5)
+
+            # Highlight strongest direction with red border
+            if is_max:
+                for spine in axes[row, col+1].spines.values():
+                    spine.set_edgecolor('#E74C3C')
+                    spine.set_linewidth(3)
+                    spine.set_visible(True)
+            else:
+                for spine in axes[row, col+1].spines.values():
+                    spine.set_visible(False)
+
+            # Add mean activation value below
+            mu = mean_activations[col]
+            color = '#E74C3C' if is_max else 'gray'
+            weight = 'bold' if is_max else 'normal'
+            axes[row, col+1].text(0.5, -0.12, f'$\mu$={mu:.2f}',
+                                  transform=axes[row, col+1].transAxes,
+                                  ha='center', fontsize=9, color=color, fontweight=weight)
+
+            axes[row, col+1].set_xticks([])
+            axes[row, col+1].set_yticks([])
+
+            # Column titles on first row
+            if row == 0:
+                axes[row, col+1].set_title(direction, fontsize=10, fontweight='bold')
+
+    # Add colorbar
+    if im is not None:
+        cbar = fig.colorbar(im, ax=axes, shrink=0.6, pad=0.02, aspect=30)
+        cbar.set_label('Correlation', fontsize=9)
+
     plt.tight_layout()
-    plt.savefig(save_path)
-    plt.savefig(save_path.replace('.pdf', '.png'))
+    plt.subplots_adjust(hspace=0.3, wspace=0.1)
+    plt.savefig(save_path, bbox_inches='tight', dpi=300)
+    plt.savefig(save_path.replace('.pdf', '.png'), bbox_inches='tight', dpi=300)
     plt.close()
     print(f"Saved: {save_path}")
 
@@ -671,7 +737,9 @@ def main():
     parser.add_argument("--dataset", type=str, default="dtd", help="Dataset for single-dataset plots")
     parser.add_argument("--log_file", type=str, help="Training log for gate evolution")
     parser.add_argument("--checkpoint", type=str, help="Model checkpoint for feature viz")
-    parser.add_argument("--image", type=str, help="Sample image for interaction viz")
+    parser.add_argument("--image", type=str, help="Single image for interaction viz")
+    parser.add_argument("--images", type=str, nargs='+',
+                        help="Multiple images for direction selectivity: path1:label1 path2:label2 ...")
     parser.add_argument("--data_dir", type=str, help="Data directory for t-SNE")
     args = parser.parse_args()
     
@@ -721,7 +789,7 @@ def main():
                     plot_gate_evolution(str(log_file), save_path=str(save_dir / 'gate_evolution.pdf'))
                     break
     
-    if args.checkpoint and args.image:
+    if args.checkpoint and (args.image or args.images):
         if 'all' in plots or 'interaction' in plots:
             if not Path(args.checkpoint).exists():
                 print(f"[Warning] Checkpoint not found: {args.checkpoint}")
@@ -734,10 +802,26 @@ def main():
                     state_dict = checkpoint['state_dict']
                 else:
                     state_dict = checkpoint
-                
+
                 model = build_model('twistnet18', num_classes=47, pretrained=False)
                 model.load_state_dict(state_dict)
-                plot_interaction_heatmap(model, args.image, save_path=str(save_dir / 'interaction.pdf'))
+
+                # Handle multiple images for direction selectivity demo
+                if args.images:
+                    # Parse "path:label" format
+                    image_info_list = []
+                    for item in args.images:
+                        if ':' in item:
+                            path, label = item.rsplit(':', 1)
+                        else:
+                            path = item
+                            label = Path(item).stem
+                        image_info_list.append((path, label))
+                    plot_interaction_heatmap(model, image_info_list,
+                                             save_path=str(save_dir / 'interaction.pdf'))
+                else:
+                    plot_interaction_heatmap(model, args.image,
+                                             save_path=str(save_dir / 'interaction.pdf'))
     
     if args.checkpoint and args.data_dir:
         if 'all' in plots or 'tsne' in plots:
