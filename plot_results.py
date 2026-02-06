@@ -406,10 +406,8 @@ def plot_efficiency(save_path="figures/efficiency.pdf"):
     
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
     
-    # Compute FLOPs for each model
+    # Efficiency comparison: only larger models
     models_to_test = [
-        'resnet18', 'seresnet18', 'convnextv2_nano', 
-        'fastvit_sa12', 'twistnet18',
         'convnext_tiny', 'swin_tiny'
     ]
     
