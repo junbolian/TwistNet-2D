@@ -277,7 +277,7 @@ def plot_params_vs_accuracy(aggregated, dataset='dtd', save_path="figures/params
     """Scatter plot: Parameters vs Accuracy."""
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
 
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(10, 4.5))
 
     # Only include models defined in COLORS (filter out removed models like efficientformerv2_s2)
     models = sorted(set(k[1] for k in aggregated.keys() if k[0] == dataset and k[1] in COLORS))
