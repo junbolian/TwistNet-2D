@@ -15,11 +15,11 @@
 
 ## Abstract
 
-Second-order feature statistics are fundamental to texture recognition, yet existing approaches face a trade-off: bilinear pooling and Gram matrices capture global correlations but discard spatial structure, while self-attention models spatial dependencies through weighted sums rather than explicit feature interactions.
+Second-order feature statistics are central to texture recognition, yet current methods face a fundamental tension: bilinear pooling and Gram matrices capture global channel correlations but collapse spatial structure, while self-attention models spatial context through weighted aggregation rather than explicit pairwise feature interactions.
 
-We propose **TwistNet-2D**, a lightweight module that computes *local* pairwise channel products with *directional spatial displacement*, preserving both where and how features co-occur. Our **Spiral-Twisted Channel Interaction (STCI)** shifts one feature map along a specified direction before computing channel-wise products, capturing the cross-position correlations characteristic of periodic textures.
+We introduce **TwistNet-2D**, a lightweight module that computes *local* pairwise channel products under *directional spatial displacement*, jointly encoding where features co-occur and how they interact. The core component, **Spiral-Twisted Channel Interaction (STCI)**, shifts one feature map along a prescribed direction before element-wise channel multiplication, thereby capturing the cross-position co-occurrence patterns characteristic of structured and periodic textures.
 
-By aggregating four directional heads with adaptive channel weighting and injecting via a sigmoid-gated residual connection, TwistNet adds only **~3.5% parameters** and **~2% FLOPs** to ResNet-18 while consistently outperforming ResNet, SE-ResNet, ConvNeXt, and hybrid CNN-transformer baselines on four texture and fine-grained benchmarks (DTD, FMD, CUB-200, Flowers-102).
+Aggregating four directional heads with learned channel reweighting and injecting the result through a sigmoid-gated residual path, TwistNet incurs only **~3.5% additional parameters** and **~2% additional FLOPs** over ResNet-18, yet consistently surpasses both parameter-matched and substantially larger baselines—including ConvNeXt, Swin Transformer, and hybrid CNN–Transformer architectures—across four texture and fine-grained recognition benchmarks (DTD, FMD, CUB-200, Flowers-102).
 
 ## Key Features
 
@@ -27,7 +27,7 @@ By aggregating four directional heads with adaptive channel weighting and inject
 - **Adaptive Interaction Selection (AIS)**: Learnable attention over interaction directions
 - **Gated Integration**: Near-zero initialization (γ=-2.0) enables stable training
 - **Lightweight Design**: Only **11.59M parameters** (~3.5% overhead vs ResNet-18), **1.85G FLOPs** (~2% overhead)
-- **Training from Scratch**: All models trained without ImageNet pretraining for fair architectural comparison
+- **Strong Inductive Bias**: All models trained from scratch without ImageNet pretraining; TwistNet's explicit co-occurrence modeling proves particularly effective in data-limited regimes where larger architectures fail to generalize
 
 ## Installation
 
@@ -99,7 +99,7 @@ python train.py \
 
 ## Experiments
 
-> **Note**: All models are trained **from scratch** without ImageNet pretraining. This ensures fair architectural comparison and is motivated by the observation that ImageNet pretraining optimizes for object-level semantics, whereas texture recognition requires modeling local co-occurrence patterns.
+> **Note**: All models are trained **from scratch** without ImageNet pretraining. This isolates architectural contributions from transfer learning and reveals that explicit second-order interaction modeling provides strong inductive bias for texture recognition, even in data-limited settings where high-capacity models suffer from severe overfitting.
 
 ### Dataset Preparation
 
@@ -145,30 +145,30 @@ python run_all.py --data_dir data/dtd --dataset dtd \
     --folds 1-3 --seeds 41,42,43,44 --epochs 200 --run_dir runs/ablation
 ```
 
-### Efficiency Comparison (vs Larger Models)
+### Larger Baselines (Group 2)
 
-Compare TwistNet-18 (11.59M) against ~28M parameter models to demonstrate efficiency.
+Compare TwistNet-18 (11.59M) against ~28M parameter models to study the effect of model scale without pretraining.
 
 ```bash
-# DTD efficiency comparison
+# DTD
 python run_all.py --data_dir data/dtd --dataset dtd \
     --models twistnet18,convnext_tiny,swin_tiny \
-    --folds 1-10 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
+    --folds 1-10 --seeds 42,43,44 --epochs 200 --run_dir runs/group2
 
-# FMD efficiency comparison
+# FMD
 python run_all.py --data_dir data/fmd --dataset fmd \
     --models twistnet18,convnext_tiny,swin_tiny \
-    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
+    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/group2
 
-# CUB-200 efficiency comparison
+# CUB-200
 python run_all.py --data_dir data/cub200 --dataset cub200 \
     --models twistnet18,convnext_tiny,swin_tiny \
-    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
+    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/group2
 
-# Flowers-102 efficiency comparison
+# Flowers-102
 python run_all.py --data_dir data/flowers102 --dataset flowers102 \
     --models twistnet18,convnext_tiny,swin_tiny \
-    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/efficiency
+    --folds 1-5 --seeds 42,43,44 --epochs 200 --run_dir runs/group2
 ```
 
 ### Generate Results
@@ -177,15 +177,15 @@ python run_all.py --data_dir data/flowers102 --dataset flowers102 \
 # LaTeX tables (mean±std format for top venues)
 python summarize_runs.py --run_dir runs/main --latex > tables/main_results.tex
 python summarize_runs.py --run_dir runs/ablation --latex > tables/ablation.tex
-python summarize_runs.py --run_dir runs/efficiency --latex > tables/efficiency.tex
+python summarize_runs.py --run_dir runs/group2 --latex > tables/group2.tex
 
 # CSV export
 python summarize_runs.py --run_dir runs/main --csv > tables/main_results.csv
-python summarize_runs.py --run_dir runs/efficiency --csv > tables/efficiency.csv
+python summarize_runs.py --run_dir runs/group2 --csv > tables/group2.csv
 
 # Text summary with statistics
 python summarize_runs.py --run_dir runs/main --summary
-python summarize_runs.py --run_dir runs/efficiency --summary
+python summarize_runs.py --run_dir runs/group2 --summary
 ```
 
 ## Visualization
@@ -206,15 +206,8 @@ python plot_results.py --run_dir runs/main --save_dir figures --plot radar
 # Scatter plot - parameters vs accuracy trade-off
 python plot_results.py --run_dir runs/main --save_dir figures --plot scatter --dataset dtd
 
-# Ablation study bar chart (with delta annotations)
-python plot_results.py --run_dir runs/ablation --save_dir figures --plot ablation
-
-# Efficiency analysis - params vs inference time
-python plot_results.py --save_dir figures --plot efficiency
-
-# Efficiency comparison - TwistNet vs larger models (~28M params)
-python plot_results.py --run_dir runs/efficiency --save_dir figures --plot bar
-python plot_results.py --run_dir runs/efficiency --save_dir figures --plot scatter --dataset dtd
+# Params vs accuracy with Group 2 overlay
+python plot_results.py --run_dir runs/group2 --save_dir figures --plot scatter --dataset dtd
 
 # Generate all figures at once
 python plot_results.py --run_dir runs/main --save_dir figures --plot all
@@ -253,7 +246,7 @@ python plot_results.py --checkpoint runs/main/dtd_fold1_twistnet18_seed42/best.p
 | `plot_results.py` | `figures/radar_chart.pdf` | Multi-dataset radar chart |
 | `plot_results.py` | `figures/params_accuracy.pdf` | Params vs accuracy scatter |
 | `plot_results.py` | `figures/ablation.pdf` | Ablation study results |
-| `plot_results.py` | `figures/efficiency.pdf` | Inference efficiency plot |
+| `plot_results.py` | `figures/group2.pdf` | Group 2 comparison plot |
 | `plot_results.py` | `figures/tsne.pdf` | t-SNE feature embedding |
 | `plot_results.py` | `figures/interaction.pdf` | Interaction heatmaps |
 | `visualize.py` | `vis/spiral_interactions.png` | 4-direction interaction matrices |
@@ -297,7 +290,7 @@ We train all models from scratch without ImageNet pretraining for two reasons:
 
 2. **Domain mismatch**: ImageNet pretraining optimizes for object-level semantics (shapes, parts, categories), whereas texture recognition requires modeling local co-occurrence patterns and periodicity. TwistNet's STCI modules specifically capture cross-position correlations that ImageNet-pretrained features do not provide.
 
-Empirically, we observe that TwistNet trained from scratch significantly outperforms all baselines, validating that explicit second-order interaction modeling provides strong inductive bias for texture recognition.
+Empirically, this protocol also reveals an important finding: overparameterized models (~28M) such as ConvNeXt-Tiny and Swin-Tiny suffer severe overfitting on small-scale texture datasets without pretraining, while lightweight models with appropriate inductive bias (TwistNet-18, 11.59M) generalize effectively. This underscores that architectural design matters more than raw model capacity in data-limited regimes.
 
 ## Results
 
@@ -310,7 +303,7 @@ Empirically, we observe that TwistNet trained from scratch significantly outperf
 
 ### Model Zoo
 
-#### Group 1: Fair Comparison (10-16M params)
+#### Group 1: Parameter-matched (10-16M params)
 
 | Model | Params | FLOPs | Venue |
 |-------|--------|-------|-------|
@@ -348,15 +341,17 @@ Empirically, we observe that TwistNet trained from scratch significantly outperf
 | w/o AIS | 11.53M | No Adaptive Interaction Selection | 44.1±1.8 |
 | First-order only | 11.20M | No STCI modules | 39.4±1.2 |
 
-### Efficiency Comparison (vs Larger Models)
+### Effect of Model Scale Without Pretraining
 
-TwistNet-18 achieves competitive performance with 2.5× fewer parameters than larger baselines.
+Larger models (~28M params) suffer severe degradation when trained from scratch on small-scale datasets, highlighting the importance of parameter-efficient designs with appropriate inductive bias.
 
 | Model | Params | DTD | FMD | CUB-200 | Flowers-102 |
 |-------|--------|-----|-----|---------|-------------|
-| ConvNeXt-Tiny | 27.86M | 41.2±1.5 | 40.3±3.2 | 58.4±0.7 | 55.2±0.8 |
-| Swin-Tiny | 27.56M | 40.8±1.6 | 39.5±2.9 | 56.2±0.9 | 53.8±0.9 |
+| ConvNeXt-Tiny | 27.86M | 11.1±0.8 | 24.3±2.7 | 3.2±1.4 | 7.5±0.3 |
+| Swin-Tiny | 27.56M | 32.2±1.2 | 35.9±3.2 | 33.0±1.0 | 48.8±0.3 |
 | **TwistNet-18 (Ours)** | **11.59M** | **45.8±1.4** | **43.5±3.8** | **61.8±0.5** | **58.5±0.7** |
+
+> **Key finding**: ConvNeXt-Tiny drops to 3.2% on CUB-200 and 11.1% on DTD without ImageNet pretraining, consistent with well-documented observations that high-capacity architectures require large-scale pretraining to realize their potential ([Dosovitskiy et al., 2021](https://arxiv.org/abs/2010.11929); [Liu et al., 2022](https://arxiv.org/abs/2201.03545)). TwistNet-18 with 2.4× fewer parameters outperforms these models by large margins, demonstrating that targeted inductive bias is more effective than raw capacity in data-limited regimes.
 
 ## TwistNet Architecture
 
