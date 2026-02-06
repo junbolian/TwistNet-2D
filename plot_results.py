@@ -308,7 +308,7 @@ def plot_params_vs_accuracy(aggregated, dataset='dtd', save_path="figures/params
     
     ax.set_xlabel('Parameters (M)')
     ax.set_ylabel(f'Test Accuracy on {DATASET_NAMES.get(dataset, dataset)} (%)')
-    ax.legend(loc='upper right', frameon=True, bbox_to_anchor=(0.98, 0.98))
+    ax.legend(loc='upper right', frameon=True, bbox_to_anchor=(0.90, 0.98))
     ax.grid(True, linestyle='--', alpha=0.3)
     
     # Add Pareto frontier hint
