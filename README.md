@@ -27,24 +27,24 @@ This repository contains the official implementation of **TwistNet-2D**, a light
 
 All models are trained from scratch under identical settings (200 epochs, SGD, cosine schedule).
 
-| Model | Params | DTD | FMD | CUB-200 | Flowers-102 |
-|:------|-------:|:---:|:---:|:-------:|:-----------:|
-| ResNet-18 | 11.20M | 39.4±1.2 | 42.6±3.1 | 54.6±0.5 | 43.6±0.5 |
-| SE-ResNet-18 | 11.29M | 36.7±1.2 | 40.8±2.8 | 52.0±0.8 | 40.5±0.7 |
-| ConvNeXtV2-Nano | 15.01M | 29.1±1.3 | 29.7±2.5 | 31.7±4.0 | 46.1±0.6 |
-| FastViT-SA12 | 10.60M | 42.7±1.4 | **45.0±3.6** | 49.9±0.6 | **59.9±0.6** |
-| RepViT-M1.5 | 13.67M | 39.2±1.5 | 36.6±2.2 | 59.7±0.6 | 51.6±0.7 |
-| **TwistNet-18 (Ours)** | **11.59M** | **45.8±1.4** | 43.5±3.8 | **61.8±0.5** | 58.5±0.7 |
+| Model | Params | FLOPs | Venue | DTD | FMD | CUB-200 | Flowers-102 |
+|:------|-------:|------:|:------|:---:|:---:|:-------:|:-----------:|
+| ResNet-18 | 11.20M | 1.82G | CVPR 2016 | 39.4±1.2 | 42.6±3.1 | 54.6±0.5 | 43.6±0.5 |
+| SE-ResNet-18 | 11.29M | 1.82G | CVPR 2018 | 36.7±1.2 | 40.8±2.8 | 52.0±0.8 | 40.5±0.7 |
+| ConvNeXtV2-Nano | 15.01M | 2.45G | CVPR 2023 | 29.1±1.3 | 29.7±2.5 | 31.7±4.0 | 46.1±0.6 |
+| FastViT-SA12 | 10.60M | 1.50G | ICCV 2023 | 42.7±1.4 | **45.0±3.6** | 49.9±0.6 | **59.9±0.6** |
+| RepViT-M1.5 | 13.67M | 2.31G | CVPR 2024 | 39.2±1.5 | 36.6±2.2 | 59.7±0.6 | 51.6±0.7 |
+| **TwistNet-18 (Ours)** | **11.59M** | **1.85G** | — | **45.8±1.4** | 43.5±3.8 | **61.8±0.5** | 58.5±0.7 |
 
 ### Group 2: Effect of Model Scale Without Pretraining (~28M)
 
 Larger models suffer severe overfitting on small-scale datasets without pretraining, while TwistNet-18 with 2.4× fewer parameters generalizes effectively.
 
-| Model | Params | DTD | FMD | CUB-200 | Flowers-102 |
-|:------|-------:|:---:|:---:|:-------:|:-----------:|
-| ConvNeXt-Tiny | 27.86M | 11.1±0.8 | 24.3±2.7 | 3.2±1.4 | 7.5±0.3 |
-| Swin-Tiny | 27.56M | 32.2±1.2 | 35.9±3.2 | 33.0±1.0 | 48.8±0.3 |
-| **TwistNet-18 (Ours)** | **11.59M** | **45.8±1.4** | **43.5±3.8** | **61.8±0.5** | **58.5±0.7** |
+| Model | Params | FLOPs | Venue | DTD | FMD | CUB-200 | Flowers-102 |
+|:------|-------:|------:|:------|:---:|:---:|:-------:|:-----------:|
+| ConvNeXt-Tiny | 27.86M | 4.47G | CVPR 2022 | 11.1±0.8 | 24.3±2.7 | 3.2±1.4 | 7.5±0.3 |
+| Swin-Tiny | 27.56M | 4.51G | ICCV 2021 | 32.2±1.2 | 35.9±3.2 | 33.0±1.0 | 48.8±0.3 |
+| **TwistNet-18 (Ours)** | **11.59M** | **1.85G** | — | **45.8±1.4** | **43.5±3.8** | **61.8±0.5** | **58.5±0.7** |
 
 ### Ablation Study (DTD)
 
@@ -54,13 +54,6 @@ Larger models suffer severe overfitting on small-scale datasets without pretrain
 | w/o Spiral Twist | 11.59M | 45.6±1.5 |
 | w/o AIS | 11.53M | 44.1±1.8 |
 | First-order only | 11.20M | 39.4±1.2 |
-
-### Model Complexity
-
-| Model | Params | FLOPs | Overhead vs ResNet-18 |
-|:------|-------:|------:|:---------------------:|
-| ResNet-18 | 11.20M | 1.82G | — |
-| **TwistNet-18** | **11.59M** | **1.85G** | +3.5% params, +2% FLOPs |
 
 ## Getting Started
 
