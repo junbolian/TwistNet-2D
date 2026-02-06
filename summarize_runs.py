@@ -188,23 +188,31 @@ def print_summary_stats(aggregated):
 def main():
     parser = argparse.ArgumentParser(description="Summarize experiment results")
     parser.add_argument("--run_dir", type=str, required=True, help="Run directory")
+    parser.add_argument("--models", type=str, nargs='+', help="Filter by specific models")
     parser.add_argument("--latex", action="store_true", help="Output LaTeX format")
     parser.add_argument("--csv", action="store_true", help="Output CSV format")
     parser.add_argument("--summary", action="store_true", help="Print summary stats only")
     args = parser.parse_args()
-    
+
     run_dir = Path(args.run_dir)
     if not run_dir.exists():
         print(f"Run directory not found: {run_dir}")
         return
-    
+
     results = load_results(run_dir)
     if not results:
         print(f"No results found in {run_dir}")
         return
-    
+
+    # Filter by models if specified
+    if args.models:
+        results = [r for r in results if r["model"] in args.models]
+        if not results:
+            print(f"No results found for models: {args.models}")
+            return
+
     print(f"Loaded {len(results)} results from {run_dir}")
-    
+
     aggregated = aggregate_results(results)
     
     if args.summary:
