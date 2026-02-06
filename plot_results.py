@@ -733,7 +733,8 @@ def plot_interaction_heatmap(model, image_path_or_list, save_path="figures/inter
 
 def main():
     parser = argparse.ArgumentParser(description="Generate publication figures")
-    parser.add_argument("--run_dir", type=str, default="runs/main", help="Run directory")
+    parser.add_argument("--run_dir", type=str, nargs='+', default=["runs/main"],
+                        help="Run directories (supports multiple: --run_dir runs/main runs/efficiency)")
     parser.add_argument("--save_dir", type=str, default="figures", help="Output directory")
     parser.add_argument("--plot", type=str, default="all", 
                         help="Plots to generate: all, bar, radar, scatter, ablation, efficiency")
@@ -751,14 +752,16 @@ def main():
     
     plots = args.plot.lower().split(',')
     
-    # Load results if available
-    run_dir = Path(args.run_dir)
-    aggregated = {}
-    if run_dir.exists():
-        results = load_results(run_dir)
-        if results:
-            aggregated = aggregate_results(results)
-            print(f"Loaded {len(results)} results from {run_dir}")
+    # Load results from all run directories
+    all_results = []
+    for rd in args.run_dir:
+        run_dir = Path(rd)
+        if run_dir.exists():
+            results = load_results(run_dir)
+            if results:
+                all_results.extend(results)
+                print(f"Loaded {len(results)} results from {run_dir}")
+    aggregated = aggregate_results(all_results) if all_results else {}
     
     # Generate plots
     if 'all' in plots or 'bar' in plots:
@@ -786,10 +789,15 @@ def main():
         if args.log_file and Path(args.log_file).exists():
             plot_gate_evolution(args.log_file, save_path=str(save_dir / 'gate_evolution.pdf'))
         else:
-            # Try to find a log file
-            for log_file in run_dir.glob("*/log.jsonl"):
-                if 'twistnet' in str(log_file):
-                    plot_gate_evolution(str(log_file), save_path=str(save_dir / 'gate_evolution.pdf'))
+            # Try to find a log file in any run directory
+            for rd in args.run_dir:
+                found = False
+                for log_file in Path(rd).glob("*/log.jsonl"):
+                    if 'twistnet' in str(log_file):
+                        plot_gate_evolution(str(log_file), save_path=str(save_dir / 'gate_evolution.pdf'))
+                        found = True
+                        break
+                if found:
                     break
     
     if args.checkpoint and (args.image or args.images):
