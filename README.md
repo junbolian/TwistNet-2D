@@ -400,7 +400,6 @@ If you find this work useful, please cite:
 @inproceedings{lian2026twistnet,
   title={TwistNet-2D: Learning Second-Order Channel Interactions via Spiral Twisting for Texture Recognition},
   author={Lian, Junbo Jacob and Xiong, Feng and Chen, Haoran and Sun, Yujun and Ouyang, Kaichen and Yu, Mingyang and Fu, Shengwei and Chen, Huiling},
-  booktitle={European Conference on Computer Vision (ECCV)},
   year={2026}
 }
 ```
