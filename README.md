@@ -116,7 +116,21 @@ python compute_flops.py --latex
 
 ### Training Configuration
 
-All models use identical settings: SGD (momentum=0.9, Nesterov), lr=0.05, cosine annealing (min 1e-5), 10-epoch linear warmup, 200 epochs, batch size 64, weight decay 1e-4, label smoothing 0.1, gradient clipping 1.0, AMP. Augmentation: RandomResizedCrop (0.2–1.0), RandAugment (n=2, m=9), Mixup (α=0.8), CutMix (α=1.0).
+All models use identical settings for fair comparison.
+
+| Setting | Value |
+|:--------|:------|
+| Optimizer | SGD (momentum=0.9, Nesterov) |
+| Learning Rate | 0.05, cosine annealing (min 1e-5) |
+| Warmup | 10 epochs (linear) |
+| Epochs | 200 |
+| Batch Size | 64 |
+| Weight Decay | 1e-4 |
+| Label Smoothing | 0.1 |
+| Gradient Clipping | 1.0 |
+| Mixed Precision | AMP |
+
+**Data Augmentation**: RandomResizedCrop (0.2–1.0, BICUBIC), RandomHorizontalFlip, RandAugment (n=2, m=9), Mixup (α=0.8), CutMix (α=1.0).
 
 ## Visualization
 
