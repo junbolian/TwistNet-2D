@@ -152,7 +152,7 @@ If you find this work useful, please cite:
 ```bibtex
 @inproceedings{lian2026twistnet,
   title={TwistNet-2D: Learning Second-Order Channel Interactions via Spiral Twisting for Texture Recognition},
-  author={Lian, Junbo Jacob and Xiong, Feng and Sun, Yujun and Ouyang, Kaichen and Yu, Mingyang and Fu, Shengwei and Rui, Zhong and Yujun, Zhang and Chen, Huiling},
+  author={Lian, Junbo Jacob and Xiong, Feng and Sun, Yujun and Ouyang, Kaichen and Zong, Ke and Yu, Mingyang and Fu, Shengwei and Rui, Zhong and Yujun, Zhang and Chen, Huiling},
   year={2026}
 }
 ```
