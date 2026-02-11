@@ -1,19 +1,29 @@
-@"
-# 数据集
+# Data
 data/
 
-# 训练结果
+# Training outputs
 runs/
 
-# 模型权重
+# Model weights
 *.pth
 *.pt
 
-# Python 缓存
+# Generated outputs
+figures/
+vis/
+tables/
+
+# Python
 __pycache__/
 *.pyc
+*.egg-info/
 
-# 系统文件
+# System files
 .DS_Store
 Thumbs.db
-"@ | Out-File -Encoding utf8 .gitignore
+nul
+
+# IDE / tools
+.claude/
+.vscode/
+*.swp
